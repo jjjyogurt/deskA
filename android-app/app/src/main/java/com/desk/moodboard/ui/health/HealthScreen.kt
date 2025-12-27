@@ -160,7 +160,12 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
         if (showCamera) {
             CameraPreviewDialog(
                 postureViewModel = postureViewModel,
-                onClose = { showCamera = false; cameraReady = false },
+                onClose = { 
+                    showCamera = false
+                    cameraReady = false
+                    // Resume background monitoring if it was running
+                    postureViewModel.requestCameraRestart()
+                },
                 onPermissionDenied = { permissionDenied = true }
             )
         }
@@ -464,9 +469,11 @@ private fun CameraPreviewDialog(
                                     val selector = CameraSelector.DEFAULT_FRONT_CAMERA
                                     cameraProvider.unbindAll()
                                     cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview)
-                                } catch (_: Exception) {
+                                    android.util.Log.d("CameraX", "Camera preview bound successfully")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("CameraX", "Camera binding failed", e)
                                 }
-                            }, Executors.newSingleThreadExecutor())
+                            }, ContextCompat.getMainExecutor(ctx))
                             previewView
                         },
                         modifier = Modifier

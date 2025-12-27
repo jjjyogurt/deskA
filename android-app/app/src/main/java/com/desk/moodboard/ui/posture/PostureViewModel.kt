@@ -58,11 +58,17 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
             repository.startSession()
         } else {
             repository.endSession()
-            context.unbindService(serviceConnection)
+            if (_isServiceRunning.value) {
+                context.unbindService(serviceConnection)
+                _isServiceRunning.value = false
+            }
             context.stopService(intent)
-            _isServiceRunning.value = false
             postureService = null
         }
+    }
+
+    fun requestCameraRestart() {
+        postureService?.startCamera()
     }
 
     override fun onCleared() {

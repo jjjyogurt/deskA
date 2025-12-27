@@ -1,0 +1,14 @@
+# Android/Gradle
+**/build/
+.gradle/
+local.properties
+.idea/
+*.iml
+*.ap_
+*.dex
+*.class
+.DS_Store
+node_modules/
+captures/
+*.hprof
+

@@ -71,24 +71,25 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
         classifier = PostureClassifier(this)
     }
 
-    private fun startCamera() {
+    fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-            
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                .build()
-                .also {
-                    it.setAnalyzer(cameraExecutor, PostureAnalyzer(poseLandmarkerHelper!!))
-                }
-
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-
             try {
+                val cameraProvider = cameraProviderFuture.get()
+                
+                val imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .build()
+                    .also {
+                        it.setAnalyzer(cameraExecutor, PostureAnalyzer(poseLandmarkerHelper!!))
+                    }
+
+                val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis)
+                Log.d(TAG, "Background camera started successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "Use case binding failed", e)
             }
