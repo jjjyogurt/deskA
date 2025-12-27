@@ -13,91 +13,91 @@ val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 36.sp, // Reduced from 44
-        lineHeight = 44.sp,
+        fontSize = 37.sp,
+        lineHeight = 45.sp,
     ),
     displayMedium = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 28.sp, // Reduced from 32
-        lineHeight = 36.sp,
+        fontSize = 29.sp,
+        lineHeight = 37.sp,
     ),
     displaySmall = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp, // Reduced from 28
-        lineHeight = 28.sp,
+        fontSize = 23.sp,
+        lineHeight = 29.sp,
     ),
     headlineLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp, // Reduced from 28
-        lineHeight = 30.sp,
+        fontSize = 23.sp,
+        lineHeight = 31.sp,
     ),
     headlineMedium = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 20.sp, // Reduced from 24
-        lineHeight = 26.sp,
+        fontSize = 21.sp,
+        lineHeight = 27.sp,
     ),
     headlineSmall = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp, // Reduced from 22
-        lineHeight = 24.sp,
+        fontSize = 19.sp,
+        lineHeight = 25.sp,
     ),
     titleLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp, // Reduced from 20
-        lineHeight = 22.sp,
+        fontSize = 17.sp,
+        lineHeight = 23.sp,
     ),
     titleMedium = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 14.sp, // Reduced from 16
-        lineHeight = 20.sp,
+        fontSize = 15.sp,
+        lineHeight = 21.sp,
     ),
     titleSmall = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 13.sp, // Reduced from 15
-        lineHeight = 18.sp,
+        fontSize = 14.sp,
+        lineHeight = 19.sp,
     ),
     bodyLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 9.sp,   // ~30% smaller than previous 13sp
-        lineHeight = 14.sp,
+        fontSize = 10.sp,
+        lineHeight = 15.sp,
     ),
     bodyMedium = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 8.sp,   // ~30% smaller than previous 11sp
-        lineHeight = 12.sp,
+        fontSize = 9.sp,
+        lineHeight = 13.sp,
     ),
     bodySmall = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 7.sp,   // ~30% smaller than previous 10sp
-        lineHeight = 10.sp,
+        fontSize = 8.sp,
+        lineHeight = 11.sp,
     ),
     labelLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 12.sp, // Reduced from 13
-        lineHeight = 15.sp,
+        fontSize = 13.sp,
+        lineHeight = 16.sp,
     ),
     labelMedium = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp, // Reduced from 12
-        lineHeight = 13.sp,
+        fontSize = 12.sp,
+        lineHeight = 14.sp,
     ),
     labelSmall = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 10.sp, // Reduced from 11
-        lineHeight = 12.sp,
+        fontSize = 11.sp,
+        lineHeight = 13.sp,
     ),
 )

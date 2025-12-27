@@ -14,11 +14,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.LocalDrink
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,58 +34,121 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+// duplicate imports removed
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.window.Dialog
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.pm.PackageManager
+import com.desk.moodboard.ui.theme.BackgroundGrey
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.YogurtBlue
-import com.desk.moodboard.ui.theme.YogurtGrey
-import com.desk.moodboard.ui.theme.YogurtMint
-import com.desk.moodboard.ui.theme.YogurtNavy
-import com.desk.moodboard.ui.theme.YogurtSilver
+import com.desk.moodboard.ui.theme.FillGrey
+import com.desk.moodboard.ui.theme.TextDark
+import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.AccentOrange
+import com.desk.moodboard.ui.theme.YogurtBlue as AccentRed
+import com.desk.moodboard.ui.theme.YogurtPeach as AccentPeach
 import com.desk.moodboard.ui.theme.YogurtSilk
+import com.desk.moodboard.ui.theme.YogurtNavy
+import com.desk.moodboard.ui.theme.YogurtGrey as OldYogurtGrey
+import java.util.concurrent.Executors
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.desk.moodboard.ui.posture.PostureViewModel
+import com.desk.moodboard.ml.PostureState
+import androidx.compose.runtime.collectAsState
 
 @Composable
-fun HealthScreen() {
+fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
+    val context = LocalContext.current
+    var showCamera by remember { mutableStateOf(false) }
+    var cameraReady by remember { mutableStateOf(false) }
+    var permissionDenied by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showCamera = true
+        } else {
+            permissionDenied = true
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
+        color = BackgroundGrey,
     ) {
+        val scroll = rememberScrollState()
+
+        val isMonitoring by postureViewModel.isServiceRunning.collectAsState()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(Dimens.screenPadding),
+                .verticalScroll(scroll)
+                .padding(horizontal = Dimens.screenPadding, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
         ) {
             Text(
                 text = "Health Overview",
-                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
-                color = YogurtNavy,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = TextDark,
             )
 
             Row(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1.8f)
-                        .fillMaxSize(),
+                        .weight(1.8f),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
                 ) {
-                    PostureTrendCard()
+                    PostureTrendCard(
+                        isRecording = isMonitoring,
+                        onViewCamera = {
+                            val status = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            if (status == PackageManager.PERMISSION_GRANTED) {
+                                showCamera = true
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }
+                    )
                     HydrationCard()
                 }
 
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize(),
+                        .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
                 ) {
                     HeartRateCard()
@@ -86,43 +156,82 @@ fun HealthScreen() {
                 }
             }
         }
+
+        if (showCamera) {
+            CameraPreviewDialog(
+                postureViewModel = postureViewModel,
+                onClose = { showCamera = false; cameraReady = false },
+                onPermissionDenied = { permissionDenied = true }
+            )
+        }
+
+        if (permissionDenied) {
+            PermissionDialog(onDismiss = { permissionDenied = false }, onRetry = { permissionDenied = false; showCamera = true })
+        }
     }
 }
 
 @Composable
-private fun PostureTrendCard() {
+private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
     Card(
-        shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = YogurtSilk),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(Dimens.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier.padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(text = "Posture Trend", style = MaterialTheme.typography.titleLarge, color = YogurtNavy)
-                Icon(imageVector = Icons.Outlined.Timeline, contentDescription = null, tint = YogurtNavy.copy(alpha = 0.3f))
-            }
-            Text(
-                text = "Weekly improvements shown as upright vs slouch time.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = YogurtGrey,
-            )
-            BarChart(
-                values = listOf(0.72f, 0.64f, 0.81f, 0.78f, 0.86f, 0.74f, 0.69f),
-                labels = listOf("M", "T", "W", "T", "F", "S", "S"),
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Legend(color = YogurtMint, text = "Upright")
-                Legend(color = YogurtSilver, text = "Other")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(text = "Posture Trend", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                        if (isRecording) {
+                            Box(
+                                modifier = Modifier
+                                    .background(AccentRed.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(modifier = Modifier.size(6.dp).background(AccentRed, CircleShape))
+                                    Text("Recording", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, color = AccentRed, fontWeight = FontWeight.Bold))
+                                }
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = onViewCamera,
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("View Camera", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp))
+                    }
+                }
+                Text(
+                    text = "Weekly improvements (upright vs slouch).",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = TextGrey,
+                )
+                BarChart(
+                    values = listOf(0.72f, 0.64f, 0.81f, 0.78f, 0.86f, 0.74f, 0.69f),
+                    labels = listOf("M", "T", "W", "T", "F", "S", "S"),
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Legend(color = AccentOrange, text = "Upright")
+                    Legend(color = FillGrey, text = "Other")
+                }
             }
         }
     }
@@ -133,7 +242,7 @@ private fun BarChart(values: List<Float>, labels: List<String>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp),
+            .height(100.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -144,20 +253,20 @@ private fun BarChart(values: List<Float>, labels: List<String>) {
             ) {
                 Box(
                     modifier = Modifier
-                        .width(36.dp)
-                        .height(160.dp)
-                        .background(YogurtSilver.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                        .width(24.dp)
+                        .height(80.dp)
+                        .background(FillGrey.copy(alpha = 0.3f), RoundedCornerShape(6.dp)),
                     contentAlignment = Alignment.BottomCenter,
                 ) {
                     Box(
                         modifier = Modifier
-                            .width(36.dp)
-                            .height(160.dp * value)
-                            .background(YogurtMint, RoundedCornerShape(12.dp)),
+                            .width(24.dp)
+                            .height(80.dp * value)
+                            .background(AccentOrange.copy(alpha = 0.8f), RoundedCornerShape(6.dp)),
                     )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(text = label, style = MaterialTheme.typography.labelMedium, color = YogurtGrey)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(text = label, style = MaterialTheme.typography.labelSmall, color = TextGrey, fontSize = 10.sp)
             }
         }
     }
@@ -166,35 +275,41 @@ private fun BarChart(values: List<Float>, labels: List<String>) {
 @Composable
 private fun HydrationCard() {
     Card(
-        shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = YogurtSilk),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(Dimens.cardPadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = "Hydration Accuracy", style = MaterialTheme.typography.titleLarge, color = YogurtNavy)
-                Text(
-                    text = "Tracking via scale + camera · target 2000 ml",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = YogurtGrey,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                ProgressBar(fraction = 0.32f, color = YogurtBlue, height = 12.dp)
-                Text(
-                    text = "640 ml logged",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = YogurtNavy,
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Dimens.cardPadding),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = "Hydration", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                    Text(
+                        text = "Target 2000 ml",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = TextGrey,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ProgressBar(fraction = 0.32f, color = AccentRed.copy(alpha = 0.7f), height = 6.dp)
+                    Text(
+                        text = "640 ml logged",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                        color = TextDark,
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Icon(imageVector = Icons.Outlined.LocalDrink, contentDescription = null, tint = AccentRed.copy(alpha = 0.3f), modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.width(24.dp))
-            Icon(imageVector = Icons.Outlined.LocalDrink, contentDescription = null, tint = YogurtBlue.copy(alpha = 0.4f), modifier = Modifier.size(32.dp))
         }
     }
 }
@@ -202,28 +317,32 @@ private fun HydrationCard() {
 @Composable
 private fun HeartRateCard() {
     Card(
-        shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = YogurtSilk),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(Dimens.cardPadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Heart Rate (vision)", style = MaterialTheme.typography.titleLarge, color = YogurtNavy)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(text = "Heart Rate", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark, modifier = Modifier.align(Alignment.Start))
                 Text(
-                    text = "Optical-only estimation",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = YogurtGrey,
+                    text = "Vision estimation",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = TextGrey,
+                    modifier = Modifier.align(Alignment.Start)
                 )
-                Ring(value = 68, color = YogurtBlue, label = "BPM")
+                Ring(value = 68, color = AccentRed, label = "BPM")
             }
-            Icon(imageVector = Icons.Outlined.Favorite, contentDescription = null, tint = Color(0xFFF49B9B).copy(alpha = 0.4f), modifier = Modifier.size(32.dp))
         }
     }
 }
@@ -231,21 +350,158 @@ private fun HeartRateCard() {
 @Composable
 private fun ReminderCard() {
     Card(
-        shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = YogurtSilk),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(Dimens.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Text(text = "Reminders", style = MaterialTheme.typography.titleLarge, color = YogurtNavy)
-            ReminderRow("Stretch", "every 45 min", YogurtBlue)
-            HorizontalDivider(color = YogurtSilver.copy(alpha = 0.5f))
-            ReminderRow("Water", "every 60 min", YogurtBlue)
-            HorizontalDivider(color = YogurtSilver.copy(alpha = 0.5f))
-            ReminderRow("Stand", "3 x per day", YogurtMint)
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(text = "Reminders", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                ReminderRow("Stretch", "45 min", AccentOrange)
+                HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                ReminderRow("Water", "60 min", AccentRed)
+                HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                ReminderRow("Stand", "3 x day", AccentOrange)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionDialog(onDismiss: () -> Unit, onRetry: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onRetry) {
+                Text("Retry")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = { Text("Camera permission needed") },
+        text = { Text("Please grant camera permission to view the posture camera.") }
+    )
+}
+
+@Composable
+private fun CameraPreviewDialog(
+    postureViewModel: PostureViewModel,
+    onClose: () -> Unit,
+    onPermissionDenied: () -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var hasPermission by remember { mutableStateOf(false) }
+    var permissionChecked by remember { mutableStateOf(false) }
+
+    val currentResult by postureViewModel.currentResult.collectAsState()
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        hasPermission = granted
+        permissionChecked = true
+        if (!granted) onPermissionDenied()
+    }
+
+    if (!permissionChecked) return
+    if (!hasPermission) return
+
+    Dialog(onDismissRequest = onClose) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = YogurtSilk,
+            tonalElevation = 4.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Posture Camera", style = MaterialTheme.typography.titleMedium, color = TextDark)
+                    IconButton(onClick = onClose) {
+                        Icon(imageVector = Icons.Outlined.Close, contentDescription = "Close", tint = TextGrey)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .background(Color.Black, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            val previewView = PreviewView(ctx).apply {
+                                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            }
+                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                            cameraProviderFuture.addListener({
+                                try {
+                                    val cameraProvider = cameraProviderFuture.get()
+                                    val preview = Preview.Builder().build().also {
+                                        it.setSurfaceProvider(previewView.surfaceProvider)
+                                    }
+                                    val selector = CameraSelector.DEFAULT_FRONT_CAMERA
+                                    cameraProvider.unbindAll()
+                                    cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview)
+                                } catch (_: Exception) {
+                                }
+                            }, Executors.newSingleThreadExecutor())
+                            previewView
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                    )
+                    
+                    // HUD Overlay
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(12.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = currentResult.state.label,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = if (currentResult.state == PostureState.SITTING_STRAIGHT || currentResult.state == PostureState.RECLINING) Color.Green else Color.Red
+                        )
+                        Text(
+                            text = "Confidence: ${(currentResult.confidence * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Live posture preview (front camera)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGrey
+                )
+            }
         }
     }
 }
@@ -258,15 +514,15 @@ private fun ReminderRow(title: String, cadence: String, color: Color) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text(text = title, style = MaterialTheme.typography.titleMedium, color = YogurtNavy)
-            Text(text = cadence, style = MaterialTheme.typography.bodySmall, color = YogurtGrey)
+            Text(text = title, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp), color = TextDark)
+            Text(text = cadence, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextGrey)
         }
         Box(
             modifier = Modifier
-                .background(color.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
         ) {
-            Text(text = "On", style = MaterialTheme.typography.labelLarge, color = color)
+            Text(text = "On", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp), color = color)
         }
     }
 }
@@ -274,28 +530,28 @@ private fun ReminderRow(title: String, cadence: String, color: Color) {
 @Composable
 private fun Ring(value: Int, color: Color, label: String) {
     Box(
-        modifier = Modifier.size(120.dp),
+        modifier = Modifier.size(70.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(120.dp)) {
+        Canvas(modifier = Modifier.size(70.dp)) {
             drawArc(
-                color = YogurtSilver.copy(alpha = 0.3f),
+                color = FillGrey.copy(alpha = 0.3f),
                 startAngle = -210f,
                 sweepAngle = 240f,
                 useCenter = false,
-                style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round),
+                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round),
             )
             drawArc(
-                color = color,
+                color = color.copy(alpha = 0.8f),
                 startAngle = -210f,
                 sweepAngle = 180f,
                 useCenter = false,
-                style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round),
+                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round),
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "$value", style = MaterialTheme.typography.displaySmall, color = YogurtNavy)
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = YogurtGrey)
+            Text(text = "$value", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextDark)
+            Text(text = label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextGrey)
         }
     }
 }
@@ -306,7 +562,7 @@ private fun ProgressBar(fraction: Float, color: Color, height: androidx.compose.
         modifier = Modifier
             .fillMaxWidth()
             .height(height)
-            .background(YogurtSilver.copy(alpha = 0.3f), CircleShape),
+            .background(FillGrey.copy(alpha = 0.3f), CircleShape),
     ) {
         Box(
             modifier = Modifier
@@ -325,9 +581,9 @@ private fun Legend(color: Color, text: String) {
     ) {
         Box(
             modifier = Modifier
-                .size(10.dp)
-                .background(color, CircleShape),
+                .size(8.dp)
+                .background(color.copy(alpha = 0.7f), CircleShape),
         )
-        Text(text = text, style = MaterialTheme.typography.labelMedium, color = YogurtGrey)
+        Text(text = text, style = MaterialTheme.typography.labelSmall, color = TextGrey, fontSize = 9.sp)
     }
 }

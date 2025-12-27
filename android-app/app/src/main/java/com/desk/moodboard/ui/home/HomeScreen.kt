@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -35,32 +38,34 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.desk.moodboard.ui.theme.AccentOrange
+import com.desk.moodboard.ui.theme.BackgroundGrey
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.SurfaceWhite
 import com.desk.moodboard.ui.theme.TextDark
 import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.YogurtPeach
+import com.desk.moodboard.ui.theme.YogurtSky
 
 @Composable
 fun HomeScreen() {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color.Transparent,
+        color = BackgroundGrey,
     ) {
         val scroll = rememberScrollState()
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scroll)
-                .padding(horizontal = 24.dp, vertical = 16.dp), // More minimal padding
-            horizontalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(horizontal = Dimens.screenPadding, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
         ) {
             // Left Column
             Column(
                 modifier = Modifier
-                    .weight(0.38f)
+                    .weight(0.55f)
                     .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
             ) {
                 MoodboardCard()
                 HealthScoreCard()
@@ -69,7 +74,7 @@ fun HomeScreen() {
             // Right Column
             Column(
                 modifier = Modifier
-                    .weight(0.62f)
+                    .weight(0.45f)
                     .fillMaxHeight()
             ) {
                 CalendarCard()
@@ -83,42 +88,49 @@ private fun MoodboardCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = null
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Moodboard",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark
-                )
-                Text(
-                    text = "0/140",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey
-                )
-            }
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .background(FillGrey.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = "How are you feeling today?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextGrey.copy(alpha = 0.7f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Moodboard",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextDark
+                    )
+                    Text(
+                        text = "0/140",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = TextGrey
+                    )
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .background(FillGrey.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = "How are you feeling today?",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                        color = TextGrey.copy(alpha = 0.7f)
+                    )
+                }
             }
         }
     }
@@ -129,79 +141,85 @@ private fun ColumnScope.HealthScoreCard() {
     Card(
         modifier = Modifier.fillMaxWidth().weight(1f),
         shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Text(
-                text = "Health Score",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = TextDark
-            )
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Score Gauge
-                Box(
-                    modifier = Modifier.size(110.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.size(110.dp)) {
-                        drawArc(
-                            color = FillGrey.copy(alpha = 0.6f),
-                            startAngle = 0f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "0",
-                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold, fontSize = 24.sp),
-                            color = TextDark
-                        )
-                        Text(
-                            text = "SCORE",
-                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontSize = 9.sp),
-                            color = TextGrey
-                        )
-                    }
-                }
+                Text(
+                    text = "Health Score",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextDark
+                )
                 
-                // Status Pill
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "STATUS",
-                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp, fontSize = 9.sp),
-                        color = TextGrey,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Score Gauge
                     Box(
-                        modifier = Modifier
-                            .background(FillGrey.copy(alpha = 0.5f), CircleShape)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.size(90.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(6.dp).background(TextGrey, CircleShape))
-                            Spacer(modifier = Modifier.width(6.dp))
+                        Canvas(modifier = Modifier.size(90.dp)) {
+                            drawArc(
+                                color = FillGrey.copy(alpha = 0.6f),
+                                startAngle = 0f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "Idle",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                                text = "0",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 21.sp),
                                 color = TextDark
+                            )
+                            Text(
+                                text = "SCORE",
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontSize = 10.sp),
+                                color = TextGrey
                             )
                         }
                     }
+                    
+                    // Status Pill
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "STATUS",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp, fontSize = 10.sp),
+                            color = TextGrey,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(FillGrey.copy(alpha = 0.5f), CircleShape)
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(5.dp).background(TextGrey, CircleShape))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Idle",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium, fontSize = 11.sp),
+                                    color = TextDark
+                                )
+                            }
+                        }
+                    }
                 }
+                Spacer(modifier = Modifier.height(1.dp))
             }
-            Spacer(modifier = Modifier.height(1.dp))
         }
     }
 }
@@ -211,81 +229,89 @@ private fun CalendarCard() {
     Card(
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(Dimens.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "December 2025",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CalendarNavButton("<")
-                    CalendarNavButton(">")
-                }
-            }
-            
-            // Calendar Grid
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Days Header
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
-                        Text(
-                            text = day,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextGrey
-                        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "December 2025",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextDark
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        CalendarNavButton("<")
+                        CalendarNavButton(">")
                     }
                 }
                 
-                val decRows = listOf(
-                    listOf(null, 1, 2, 3, 4, 5, 6),
-                    listOf(7, 8, 9, 10, 11, 12, 13),
-                    listOf(14, 15, 16, 17, 18, 19, 20),
-                    listOf(21, 22, 23, 24, 25, 26, 27),
-                    listOf(28, 29, 30, 31, null, null, null)
-                )
-                
-                decRows.forEach { row ->
+                // Calendar Grid
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Days Header
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        row.forEach { day ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (day != null) {
-                                    val isSelected = day == 24
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(40.dp, 32.dp)
-                                                .background(AccentOrange, RoundedCornerShape(6.dp)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
+                        listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
+                            Text(
+                                text = day,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextGrey,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    
+                    val decRows = listOf(
+                        listOf(null, 1, 2, 3, 4, 5, 6),
+                        listOf(7, 8, 9, 10, 11, 12, 13),
+                        listOf(14, 15, 16, 17, 18, 19, 20),
+                        listOf(21, 22, 23, 24, 25, 26, 27),
+                        listOf(28, 29, 30, 31, null, null, null)
+                    )
+                    
+                    decRows.forEach { row ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            row.forEach { day ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(22.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (day != null) {
+                                        val isSelected = day == 24
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp, 20.dp)
+                                                    .background(AccentOrange, RoundedCornerShape(4.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "$day",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
+                                                )
+                                            }
+                                        } else {
                                             Text(
                                                 text = "$day",
-                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color.White)
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                                color = TextDark.copy(alpha = 0.9f),
+                                                fontSize = 10.sp
                                             )
                                         }
-                                    } else {
-                                        Text(
-                                            text = "$day",
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                                            color = TextDark.copy(alpha = 0.9f)
-                                        )
                                     }
                                 }
                             }
@@ -301,14 +327,15 @@ private fun CalendarCard() {
 private fun CalendarNavButton(label: String) {
     Box(
         modifier = Modifier
-            .size(32.dp)
-            .background(FillGrey.copy(alpha = 0.4f), RoundedCornerShape(6.dp)),
+            .size(24.dp)
+            .background(FillGrey.copy(alpha = 0.4f), RoundedCornerShape(4.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-            color = TextDark
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = TextDark,
+            fontSize = 11.sp
         )
     }
 }
