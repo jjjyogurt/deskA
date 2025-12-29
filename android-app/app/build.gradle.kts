@@ -50,6 +50,11 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    aaptOptions {
+        noCompress("tflite")
+        noCompress("task")
+    }
 }
 
 dependencies {
@@ -79,9 +84,10 @@ dependencies {
     // MediaPipe Vision
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
 
-    // TFLite
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    // LiteRT (Successor to TFLite) - Version 1.0.1+ supports the latest opcodes (v12)
+    // Using LiteRT avoids duplicate class conflicts with MediaPipe 0.10.14+
+    implementation("com.google.ai.edge.litert:litert:1.0.1")
+    implementation("com.google.ai.edge.litert:litert-support:1.0.1")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))

@@ -8,6 +8,7 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
+import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
@@ -79,16 +80,26 @@ class PoseLandmarkerHelper(
         }
         val frameTime = SystemClock.uptimeMillis()
 
+        // Respect rotation so landmarks are not sideways
+        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        val imageOptions = ImageProcessingOptions.builder()
+            .setRotationDegrees(rotationDegrees)
+            .build()
+
         // Copy out RGB bits from the frame to a bitmap object
         val bitmapBuffer =
             BitmapImageBuilder(imageProxy.toBitmap())
                 .build()
 
-        detectAsync(bitmapBuffer, frameTime)
+        try {
+            detectAsync(bitmapBuffer, imageOptions, frameTime)
+        } catch (t: Throwable) {
+            android.util.Log.e(TAG, "detectAsync failed", t)
+        }
     }
 
-    private fun detectAsync(mpImage: MPImage, frameTime: Long) {
-        poseLandmarker?.detectAsync(mpImage, frameTime)
+    private fun detectAsync(mpImage: MPImage, imageOptions: ImageProcessingOptions, frameTime: Long) {
+        poseLandmarker?.detectAsync(mpImage, imageOptions, frameTime)
     }
 
     private fun returnLivestreamResult(
@@ -128,6 +139,9 @@ class PoseLandmarkerHelper(
         fun onResults(resultBundle: ResultBundle)
     }
 }
+
+
+
 
 
 

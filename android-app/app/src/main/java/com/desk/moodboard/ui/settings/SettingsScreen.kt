@@ -76,6 +76,7 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        android.util.Log.d("SettingsScreen", "Permission result CAMERA granted=$isGranted")
         if (isGranted) {
             postureViewModel.togglePostureMonitoring(true)
         }
@@ -149,14 +150,18 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
                             subtitle = "Background",
                             checked = postureDetectionEnabled,
                             onToggle = { enable ->
+                                android.util.Log.d("SettingsScreen", "Toggle Posture Monitoring -> $enable")
                                 if (enable) {
                                     val status = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                                     if (status == PackageManager.PERMISSION_GRANTED) {
+                                        android.util.Log.d("SettingsScreen", "Permission already granted, starting service")
                                         postureViewModel.togglePostureMonitoring(true)
                                     } else {
+                                        android.util.Log.d("SettingsScreen", "Requesting CAMERA permission")
                                         permissionLauncher.launch(Manifest.permission.CAMERA)
                                     }
                                 } else {
+                                    android.util.Log.d("SettingsScreen", "Stopping service")
                                     postureViewModel.togglePostureMonitoring(false)
                                 }
                             }

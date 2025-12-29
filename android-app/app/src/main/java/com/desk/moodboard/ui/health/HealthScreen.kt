@@ -163,8 +163,6 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
                 onClose = { 
                     showCamera = false
                     cameraReady = false
-                    // Resume background monitoring if it was running
-                    postureViewModel.requestCameraRestart()
                 },
                 onPermissionDenied = { permissionDenied = true }
             )
@@ -456,25 +454,15 @@ private fun CameraPreviewDialog(
                 ) {
                     AndroidView(
                         factory = { ctx ->
-                            val previewView = PreviewView(ctx).apply {
+                            PreviewView(ctx).apply {
                                 implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                                // Use the background service's already running preview
+                                postureViewModel.attachPreviewToService(this.surfaceProvider)
                             }
-                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                            cameraProviderFuture.addListener({
-                                try {
-                                    val cameraProvider = cameraProviderFuture.get()
-                                    val preview = Preview.Builder().build().also {
-                                        it.setSurfaceProvider(previewView.surfaceProvider)
-                                    }
-                                    val selector = CameraSelector.DEFAULT_FRONT_CAMERA
-                                    cameraProvider.unbindAll()
-                                    cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview)
-                                    android.util.Log.d("CameraX", "Camera preview bound successfully")
-                                } catch (e: Exception) {
-                                    android.util.Log.e("CameraX", "Camera binding failed", e)
-                                }
-                            }, ContextCompat.getMainExecutor(ctx))
-                            previewView
+                        },
+                        onRelease = {
+                            // Detach when dialog is closed
+                            postureViewModel.detachPreviewFromService()
                         },
                         modifier = Modifier
                             .fillMaxWidth()

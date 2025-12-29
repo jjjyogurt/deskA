@@ -6,8 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.camera.core.Preview
 import com.desk.moodboard.data.PostureRepository
 import com.desk.moodboard.ml.PostureResult
 import com.desk.moodboard.ml.PostureState
@@ -33,6 +35,7 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
             val binder = service as PostureForegroundService.LocalBinder
             postureService = binder.getService()
             _isServiceRunning.value = true
+            Log.d(TAG, "Service connected")
             
             viewModelScope.launch {
                 postureService?.currentResult?.collect { result ->
@@ -45,30 +48,66 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
         override fun onServiceDisconnected(name: ComponentName?) {
             postureService = null
             _isServiceRunning.value = false
+            Log.d(TAG, "Service disconnected")
         }
     }
 
     fun togglePostureMonitoring(enable: Boolean) {
         val context = getApplication<Application>().applicationContext
         val intent = Intent(context, PostureForegroundService::class.java)
+        Log.d(TAG, "togglePostureMonitoring enable=$enable")
         
         if (enable) {
-            context.startForegroundService(intent)
-            context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-            repository.startSession()
+            try {
+                context.startForegroundService(intent)
+                val bound = context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+                Log.d(TAG, "bindService result=$bound")
+                _isServiceRunning.value = true // optimistic; will be confirmed by connection
+                repository.startSession()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start/bind service", e)
+            }
         } else {
             repository.endSession()
             if (_isServiceRunning.value) {
-                context.unbindService(serviceConnection)
+                try {
+                    context.unbindService(serviceConnection)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to unbind service", e)
+                }
                 _isServiceRunning.value = false
             }
-            context.stopService(intent)
+            try {
+                context.stopService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop service", e)
+            }
             postureService = null
+            Log.d(TAG, "Service stopped")
         }
+    }
+
+    fun attachPreviewToService(surfaceProvider: Preview.SurfaceProvider) {
+        // Ensure service is running before attaching the provider
+        val context = getApplication<Application>().applicationContext
+        if (postureService == null) {
+            val intent = Intent(context, PostureForegroundService::class.java)
+            context.startForegroundService(intent)
+            context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
+        postureService?.setPreviewSurfaceProvider(surfaceProvider)
+    }
+
+    fun detachPreviewFromService() {
+        postureService?.setPreviewSurfaceProvider(null)
     }
 
     fun requestCameraRestart() {
         postureService?.startCamera()
+    }
+
+    companion object {
+        private const val TAG = "PostureViewModel"
     }
 
     override fun onCleared() {

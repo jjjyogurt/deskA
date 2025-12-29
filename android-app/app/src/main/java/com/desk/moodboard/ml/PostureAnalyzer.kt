@@ -18,13 +18,20 @@ class PostureAnalyzer(
             lastInferenceTime = currentTime
             
             // Front camera is typical for this app's use case
-            poseLandmarkerHelper.detectLiveStream(image, true)
+            try {
+                poseLandmarkerHelper.detectLiveStream(image, true)
+            } catch (t: Throwable) {
+                android.util.Log.e("PostureAnalyzer", "detectLiveStream failed", t)
+            }
         }
         
         // Always close the image proxy to avoid blocking the pipeline
         image.close()
     }
 }
+
+
+
 
 
 

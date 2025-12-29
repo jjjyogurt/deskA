@@ -14,7 +14,7 @@
         android:theme="@style/Theme.Moodboard">
 
         <service
-            android:name=".PostureForegroundService"
+            android:name=".service.PostureForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="camera" />
