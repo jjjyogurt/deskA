@@ -67,9 +67,18 @@ class PostureClassifier(context: Context) {
         // Extract landmarks (take first person detected)
         val landmarks = landmarksList[0]
         
-        // --- LANDMARK NORMALIZATION (Centering) ---
-        // To make classification robust to user position, we center landmarks 
-        // relative to the midpoint between shoulders (indices 11 and 12).
+        // --- HALLUCINATION GUARD ---
+        // True human detections usually have higher visibility.
+        // We sum up the visibility scores to ensure it's not a background "ghost".
+        var totalVisibility = 0f
+        landmarks.forEach { totalVisibility += it.visibility().orElse(0f) }
+        val avgVisibility = totalVisibility / 33f
+        if (avgVisibility < 0.5f) {
+            Log.d("PostureClassifier", "Ignoring potential hallucination (Avg visibility: $avgVisibility)")
+            return PostureResult(PostureState.UNKNOWN, 0f)
+        }
+
+        // --- LANDMARK NORMALIZATION (Centering & Scaling) ---
         if (landmarks.size < 33) {
             Log.w("PostureClassifier", "Insufficient landmarks: ${landmarks.size}")
             return PostureResult(PostureState.UNKNOWN, 0f)
@@ -78,19 +87,24 @@ class PostureClassifier(context: Context) {
         val leftShoulder = landmarks[11]
         val rightShoulder = landmarks[12]
         
+        // 1. Translation: Center relative to shoulders
         val centerX = (leftShoulder.x() + rightShoulder.x()) / 2f
         val centerY = (leftShoulder.y() + rightShoulder.y()) / 2f
         val centerZ = (leftShoulder.z() + rightShoulder.z()) / 2f
 
+        // 2. Scale: Divide by shoulder distance to be distance-invariant
+        val dx = leftShoulder.x() - rightShoulder.x()
+        val dy = leftShoulder.y() - rightShoulder.y()
+        val shoulderDistance = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat().coerceAtLeast(0.01f)
+
         // Prepare input tensor (33 landmarks * 4 values = 132 floats)
-        // Values are: centeredX, centeredY, centeredZ, visibility
+        // Values are: (x-centerX)/scale, (y-centerY)/scale, (z-centerZ)/scale, visibility
         val input = FloatArray(33 * 4)
         landmarks.forEachIndexed { index, landmark ->
             val baseIdx = index * 4
-            // Normalizing: subtract the shoulder center point
-            input[baseIdx] = landmark.x() - centerX
-            input[baseIdx + 1] = landmark.y() - centerY
-            input[baseIdx + 2] = landmark.z() - centerZ
+            input[baseIdx] = (landmark.x() - centerX) / shoulderDistance
+            input[baseIdx + 1] = (landmark.y() - centerY) / shoulderDistance
+            input[baseIdx + 2] = (landmark.z() - centerZ) / shoulderDistance
             input[baseIdx + 3] = landmark.visibility().orElse(0f)
         }
 
@@ -128,11 +142,11 @@ class PostureClassifier(context: Context) {
         }
 
         val state = when (maxIdx) {
-            0 -> PostureState.SITTING_STRAIGHT
-            1 -> PostureState.SLOUCHING
-            2 -> PostureState.LEANING_LEFT
-            3 -> PostureState.LEANING_RIGHT
-            4 -> PostureState.RECLINING
+            0 -> PostureState.LEANING_LEFT
+            1 -> PostureState.LEANING_RIGHT
+            2 -> PostureState.RECLINING
+            3 -> PostureState.SITTING_STRAIGHT
+            4 -> PostureState.SLOUCHING
             else -> PostureState.UNKNOWN
         }
 

@@ -80,10 +80,10 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
         Log.d(TAG, "setupML start")
         poseLandmarkerHelper = PoseLandmarkerHelper(
             context = this,
-            // Lower thresholds temporarily to ensure detection in low confidence scenarios
-            minPoseDetectionConfidence = 0.3f,
-            minPoseTrackingConfidence = 0.3f,
-            minPosePresenceConfidence = 0.3f,
+            // Increased to 0.6f to prevent background "hallucinations" in empty frames
+            minPoseDetectionConfidence = 0.6f,
+            minPoseTrackingConfidence = 0.6f,
+            minPosePresenceConfidence = 0.6f,
             landmarkerListener = this
         )
         classifier = PostureClassifier(this)
@@ -152,7 +152,9 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
             val count = landmarks?.size ?: 0
             Log.d(TAG, "Landmarks count=$count")
             if (count == 0) {
-                Log.w(TAG, "No landmarks detected")
+                Log.w(TAG, "No landmarks detected - clearing state")
+                _currentResult.value = PostureResult(PostureState.UNKNOWN, 0f)
+                updateNotification("Posture Monitor Active")
                 return
             }
             val classification = classifier?.classify(poseResult)
