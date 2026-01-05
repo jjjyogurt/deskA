@@ -53,19 +53,20 @@ class PostureClassifier(context: Context) {
     }
 
     fun classify(result: PoseLandmarkerResult): PostureResult {
-        val landmarksList = result.landmarks()
+        val worldLandmarksList = result.worldLandmarks()
         
         if (interpreter == null) {
             Log.e("PostureClassifier", "Inference failed: Interpreter is null.")
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
         
-        if (landmarksList.isEmpty()) {
+        if (worldLandmarksList.isEmpty()) {
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        // Extract landmarks (take first person detected)
-        val landmarks = landmarksList[0]
+        // Extract world landmarks (take first person detected)
+        // worldLandmarks are in METERS, centered at hips (0,0,0) by default
+        val landmarks = worldLandmarksList[0]
         
         // --- HALLUCINATION GUARD ---
         // True human detections usually have higher visibility.
@@ -73,12 +74,12 @@ class PostureClassifier(context: Context) {
         var totalVisibility = 0f
         landmarks.forEach { totalVisibility += it.visibility().orElse(0f) }
         val avgVisibility = totalVisibility / 33f
-        if (avgVisibility < 0.5f) {
+        if (avgVisibility < 0.4f) {
             Log.d("PostureClassifier", "Ignoring potential hallucination (Avg visibility: $avgVisibility)")
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        // --- LANDMARK NORMALIZATION (Centering & Scaling) ---
+        // --- LANDMARK NORMALIZATION (Centering Only) ---
         if (landmarks.size < 33) {
             Log.w("PostureClassifier", "Insufficient landmarks: ${landmarks.size}")
             return PostureResult(PostureState.UNKNOWN, 0f)
@@ -87,26 +88,36 @@ class PostureClassifier(context: Context) {
         val leftShoulder = landmarks[11]
         val rightShoulder = landmarks[12]
         
-        // 1. Translation: Center relative to shoulders
+        // 1. Translation: Center relative to shoulders (in Metric space)
         val centerX = (leftShoulder.x() + rightShoulder.x()) / 2f
         val centerY = (leftShoulder.y() + rightShoulder.y()) / 2f
         val centerZ = (leftShoulder.z() + rightShoulder.z()) / 2f
 
-        // 2. Scale: Divide by shoulder distance to be distance-invariant
-        val dx = leftShoulder.x() - rightShoulder.x()
-        val dy = leftShoulder.y() - rightShoulder.y()
-        val shoulderDistance = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat().coerceAtLeast(0.01f)
+        // 2. Skip dynamic scaling: worldLandmarks are already in meters, 
+        // which makes them naturally distance-invariant.
 
-        // Prepare input tensor (33 landmarks * 4 values = 132 floats)
-        // Values are: (x-centerX)/scale, (y-centerY)/scale, (z-centerZ)/scale, visibility
-        val input = FloatArray(33 * 4)
-        landmarks.forEachIndexed { index, landmark ->
+        // Prepare input tensor (17 landmarks * 4 values = 68 floats)
+        // Order: 8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19
+        val targetIndices = listOf(8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19)
+        val input = FloatArray(targetIndices.size * 4)
+        
+        targetIndices.forEachIndexed { index, landmarkIdx ->
+            val landmark = landmarks[landmarkIdx]
             val baseIdx = index * 4
-            input[baseIdx] = (landmark.x() - centerX) / shoulderDistance
-            input[baseIdx + 1] = (landmark.y() - centerY) / shoulderDistance
-            input[baseIdx + 2] = (landmark.z() - centerZ) / shoulderDistance
+            // Mirror X coordinates by using (centerX - x) instead of (x - centerX)
+            // Units are now in raw METERS relative to the shoulder center
+            input[baseIdx] = (centerX - landmark.x())
+            input[baseIdx + 1] = (landmark.y() - centerY)
+            input[baseIdx + 2] = (landmark.z() - centerZ)
             input[baseIdx + 3] = landmark.visibility().orElse(0f)
         }
+
+        // --- DEBUG LOGGING FOR PYTHON COMPARISON ---
+        // Copy this array from Logcat and paste into your Python script to compare.
+        val inputString = input.joinToString(separator = ", ", prefix = "[", postfix = "]") { 
+            String.format("%.4f", it) 
+        }
+        Log.d("PostureClassifier", "PYTHON_COMPARE_DATA: $inputString")
 
         // Prepare output tensor (5 classes)
         val output = Array(1) { FloatArray(5) }
