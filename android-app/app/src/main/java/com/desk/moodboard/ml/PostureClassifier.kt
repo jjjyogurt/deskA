@@ -64,13 +64,12 @@ class PostureClassifier(context: Context) {
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        // Extract world landmarks (take first person detected)
-        // worldLandmarks are in METERS, centered at hips (0,0,0) by default
+        // --- GEOMETRIC RATIO VECTOR ---
+        // Industry Best Practice: Instead of coordinates, we use ratios of distances.
+        // This is 100% invariant to translation, scale, and camera position.
         val landmarks = worldLandmarksList[0]
         
         // --- HALLUCINATION GUARD ---
-        // True human detections usually have higher visibility.
-        // We sum up the visibility scores to ensure it's not a background "ghost".
         var totalVisibility = 0f
         landmarks.forEach { totalVisibility += it.visibility().orElse(0f) }
         val avgVisibility = totalVisibility / 33f
@@ -79,45 +78,68 @@ class PostureClassifier(context: Context) {
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        // --- LANDMARK NORMALIZATION (Centering Only) ---
-        if (landmarks.size < 33) {
-            Log.w("PostureClassifier", "Insufficient landmarks: ${landmarks.size}")
-            return PostureResult(PostureState.UNKNOWN, 0f)
-        }
+        if (landmarks.size < 33) return PostureResult(PostureState.UNKNOWN, 0f)
 
-        val leftShoulder = landmarks[11]
-        val rightShoulder = landmarks[12]
+        // 1. Define Key Points (World Landmarks in meters)
+        val nose = landmarks[0]
+        val lShoulder = landmarks[11]
+        val rShoulder = landmarks[12]
+        val lEye = landmarks[3]
+        val rEye = landmarks[6]
+        val lEar = landmarks[7]
+        val rEar = landmarks[8]
+        val lMouth = landmarks[9]
+        val rMouth = landmarks[10]
+
+        // 2. Reference Metric: 2D Shoulder Width (X and Y only)
+        // 2D distance is MUCH more stable than 3D for scaling in desk apps.
+        val dx = lShoulder.x() - rShoulder.x()
+        val dy = lShoulder.y() - rShoulder.y()
+        val shoulderWidth = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat().coerceAtLeast(0.1f)
+
+        // 3. Calculate Mid-Points
+        val midShoulderX = (lShoulder.x() + rShoulder.x()) / 2f
+        val midShoulderY = (lShoulder.y() + rShoulder.y()) / 2f
+        val midShoulderZ = (lShoulder.z() + rShoulder.z()) / 2f
+
+        // 4. Generate 10 Geometric Ratios
+        val input = FloatArray(10)
         
-        // 1. Translation: Center relative to shoulders (in Metric space)
-        val centerX = (leftShoulder.x() + rightShoulder.x()) / 2f
-        val centerY = (leftShoulder.y() + rightShoulder.y()) / 2f
-        val centerZ = (leftShoulder.z() + rightShoulder.z()) / 2f
-
-        // 2. Skip dynamic scaling: worldLandmarks are already in meters, 
-        // which makes them naturally distance-invariant.
-
-        // Prepare input tensor (17 landmarks * 4 values = 68 floats)
-        // Order: 8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19
-        val targetIndices = listOf(8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19)
-        val input = FloatArray(targetIndices.size * 4)
+        // Ratio 1: Nose Height (Slouching - more positive = lower head)
+        input[0] = (nose.y() - midShoulderY) / shoulderWidth
         
-        targetIndices.forEachIndexed { index, landmarkIdx ->
-            val landmark = landmarks[landmarkIdx]
-            val baseIdx = index * 4
-            // Mirror X coordinates by using (centerX - x) instead of (x - centerX)
-            // Units are now in raw METERS relative to the shoulder center
-            input[baseIdx] = (centerX - landmark.x())
-            input[baseIdx + 1] = (landmark.y() - centerY)
-            input[baseIdx + 2] = (landmark.z() - centerZ)
-            input[baseIdx + 3] = landmark.visibility().orElse(0f)
-        }
+        // Ratio 2: Shoulder Tilt (Leaning - positive = left down)
+        input[1] = (lShoulder.y() - rShoulder.y()) / shoulderWidth
+        
+        // Ratio 3: Nose Centering (Leaning/Rotation - offset from mid-shoulder)
+        // Standard Orientation: (Nose.x - Mid.x). No manual mirror flip.
+        input[2] = (nose.x() - midShoulderX) / shoulderWidth
+        
+        // Ratio 4: Nose Depth (Reclining - distance from shoulder plane)
+        input[3] = (midShoulderZ - nose.z()) / shoulderWidth
+        
+        // Ratio 5 & 6: Eye Height relative to shoulders
+        input[4] = (lEye.y() - midShoulderY) / shoulderWidth
+        input[5] = (rEye.y() - midShoulderY) / shoulderWidth
+        
+        // Ratio 7 & 8: Ear Height relative to shoulders (Head tilt)
+        input[6] = (lEar.y() - midShoulderY) / shoulderWidth
+        input[7] = (rEar.y() - midShoulderY) / shoulderWidth
+        
+        // Ratio 9: Eye-to-Eye width (Zoom/Distance indicator)
+        val edx = lEye.x() - rEye.x()
+        val edy = lEye.y() - rEye.y()
+        input[8] = Math.sqrt((edx * edx + edy * edy).toDouble()).toFloat() / shoulderWidth
+        
+        // Ratio 10: Mouth Height (Verticality)
+        val midMouthY = (lMouth.y() + rMouth.y()) / 2f
+        input[9] = (midMouthY - midShoulderY) / shoulderWidth
 
         // --- DEBUG LOGGING FOR PYTHON COMPARISON ---
-        // Copy this array from Logcat and paste into your Python script to compare.
         val inputString = input.joinToString(separator = ", ", prefix = "[", postfix = "]") { 
             String.format("%.4f", it) 
         }
-        Log.d("PostureClassifier", "PYTHON_COMPARE_DATA: $inputString")
+        Log.d("PostureClassifier", "GEOM_RATIO_DATA: $inputString")
 
         // Prepare output tensor (5 classes)
         val output = Array(1) { FloatArray(5) }
