@@ -83,6 +83,7 @@ import java.util.concurrent.Executors
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.desk.moodboard.ui.posture.PostureViewModel
 import com.desk.moodboard.ml.PostureState
+import com.desk.moodboard.ml.PoseOverlay
 import androidx.compose.runtime.collectAsState
 
 @Composable
@@ -409,6 +410,7 @@ private fun CameraPreviewDialog(
     var permissionChecked by remember { mutableStateOf(false) }
 
     val currentResult by postureViewModel.currentResult.collectAsState()
+    val poseOverlay by postureViewModel.poseOverlay.collectAsState()
 
     LaunchedEffect(Unit) {
         val granted = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) ==
@@ -468,6 +470,45 @@ private fun CameraPreviewDialog(
                             .fillMaxWidth()
                             .height(240.dp)
                     )
+                    // Landmark overlay
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .align(Alignment.Center)
+                    ) {
+                        val overlay: PoseOverlay = poseOverlay ?: return@Canvas
+                        val points = overlay.landmarks
+                        if (points.isEmpty()) return@Canvas
+
+                        val canvasWidth = size.width
+                        val canvasHeight = size.height
+
+                        fun map(lm: com.google.mediapipe.tasks.components.containers.NormalizedLandmark): Offset {
+                            val x = if (overlay.isFrontCamera) 1f - lm.x() else lm.x()
+                            return Offset(x * canvasWidth, lm.y() * canvasHeight)
+                        }
+
+                        poseConnections.forEach { (a, b) ->
+                            if (a < points.size && b < points.size) {
+                                drawLine(
+                                    color = Color(0xFF4CAF50),
+                                    strokeWidth = 2.dp.toPx(),
+                                    start = map(points[a]),
+                                    end = map(points[b]),
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                        }
+
+                        points.forEach { lm ->
+                            drawCircle(
+                                color = Color.Cyan,
+                                radius = 3.dp.toPx(),
+                                center = map(lm)
+                            )
+                        }
+                    }
                     
                     // HUD Overlay
                     Column(
@@ -521,6 +562,14 @@ private fun ReminderRow(title: String, cadence: String, color: Color) {
         }
     }
 }
+
+// Minimal connection map for skeleton overlay (MediaPipe pose indices).
+private val poseConnections = listOf(
+    11 to 12, 11 to 23, 12 to 24, 23 to 24,
+    23 to 25, 24 to 26, 25 to 27, 26 to 28,
+    27 to 29, 28 to 30, 29 to 31, 30 to 32,
+    11 to 13, 13 to 15, 12 to 14, 14 to 16
+)
 
 @Composable
 private fun Ring(value: Int, color: Color, label: String) {

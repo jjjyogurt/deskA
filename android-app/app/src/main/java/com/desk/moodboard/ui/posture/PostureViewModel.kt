@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.camera.core.Preview
 import com.desk.moodboard.data.PostureRepository
+import com.desk.moodboard.ml.PoseOverlay
 import com.desk.moodboard.ml.PostureResult
 import com.desk.moodboard.ml.PostureState
 import com.desk.moodboard.service.PostureForegroundService
@@ -24,6 +25,8 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
     
     private val _currentResult = MutableStateFlow(PostureResult(PostureState.UNKNOWN, 0f))
     val currentResult = _currentResult.asStateFlow()
+    private val _poseOverlay = MutableStateFlow<PoseOverlay?>(null)
+    val poseOverlay = _poseOverlay.asStateFlow()
 
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning = _isServiceRunning.asStateFlow()
@@ -41,6 +44,11 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
                 postureService?.currentResult?.collect { result ->
                     _currentResult.value = result
                     repository.onPostureResult(result)
+                }
+            }
+            viewModelScope.launch {
+                postureService?.poseOverlay?.collect { overlay ->
+                    _poseOverlay.value = overlay
                 }
             }
         }

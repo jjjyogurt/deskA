@@ -22,6 +22,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import com.desk.moodboard.ml.PoseLandmarkerHelper
 import com.desk.moodboard.ml.PostureAnalyzer
+import com.desk.moodboard.ml.PoseOverlay
 import com.desk.moodboard.ml.PostureClassifier
 import com.desk.moodboard.ml.PostureResult
 import com.desk.moodboard.ml.PostureState
@@ -45,6 +46,8 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
     
     private val _currentResult = MutableStateFlow(PostureResult(PostureState.UNKNOWN, 0f))
     val currentResult = _currentResult.asStateFlow()
+    private val _poseOverlay = MutableStateFlow<PoseOverlay?>(null)
+    val poseOverlay = _poseOverlay.asStateFlow()
 
     inner class LocalBinder : Binder() {
         fun getService(): PostureForegroundService = this@PostureForegroundService
@@ -154,12 +157,19 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
             if (count == 0) {
                 Log.w(TAG, "No landmarks detected - clearing state")
                 _currentResult.value = PostureResult(PostureState.UNKNOWN, 0f)
+                _poseOverlay.value = null
                 updateNotification("Posture Monitor Active")
                 return
             }
             val classification = classifier?.classify(poseResult)
             if (classification != null) {
                 _currentResult.value = classification.copy(inferenceTime = resultBundle.inferenceTime)
+                _poseOverlay.value = PoseOverlay(
+                    landmarks = ArrayList(landmarks), // copy so data survives after callback
+                    imageWidth = resultBundle.inputImageWidth,
+                    imageHeight = resultBundle.inputImageHeight,
+                    isFrontCamera = true
+                )
                 updateNotification("Current Posture: ${classification.state.label}")
                 Log.d(TAG, "Result state=${classification.state} conf=${classification.confidence}")
             }
