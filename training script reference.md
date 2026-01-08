@@ -8,12 +8,14 @@ import pandas as pd
 import tensorflow as tf
 import mediapipe as mp
 from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.callbacks import EarlyStopping
 
 # ============================================================================
-# Configuration: Fixed-Frame Raw Landmarks (132 Features)
+# Configuration: Raw Landmark Features (132 Features)
 # ============================================================================
 NUM_FEATURES = 132  # 33 landmarks * (x, y, z, visibility)
 
@@ -22,12 +24,12 @@ def get_raw_features(landmarks):
     Args:
         landmarks: Normalized pose landmarks (0.0 to 1.0).
     Returns:
-        A flat list of 132 features.
+        A flat list of 132 features (x, y, z, visibility for each).
     """
     features = []
     for lm in landmarks:
-        # Extract x, y, z, and visibility.
-        # Visibility helps the model understand if a point is occluded (e.g., by a desk).
+        # We now include visibility. This helps the model identify 
+        # occlusions common in desk setups (e.g., desk blocking elbows).
         features.extend([lm.x, lm.y, lm.z, lm.visibility])
     return features
 
@@ -57,7 +59,7 @@ pose = mp_pose.Pose(
 with open(output_csv_path, mode='w', newline='') as f:
     csv_writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-    # Write Header (class_name + 132 features)
+    # Write Header (class_name + 132 generic 'feat' columns)
     header = ['class_name'] + [f'feat_{i+1}' for i in range(NUM_FEATURES)]
     csv_writer.writerow(header)
 
@@ -78,11 +80,11 @@ with open(output_csv_path, mode='w', newline='') as f:
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             results = pose.process(image_rgb)
 
-            # Use Normalized Landmarks (0-1) for better stability in fixed camera setups
+            # USE NORMALIZED LANDMARKS (pose_landmarks)
             if results.pose_landmarks:
                 lm_list = results.pose_landmarks.landmark
                 
-                # Generate 132 raw features (x, y, z, visibility for all 33 landmarks)
+                # Generate 132 raw features
                 features = get_raw_features(lm_list)
                 
                 row = [class_name] + features
@@ -90,78 +92,107 @@ with open(output_csv_path, mode='w', newline='') as f:
 
 print(f"✅ Data saved to {output_csv_path}")
 
-# @title Step 3: Train Neural Network
-# --- NEW: Data Augmentation (Noise) ---
-def augment_with_noise(X, y, num_fake=10, noise_level=0.005):
+```
+# @title Step 3: Train Neural Network (Single Frame, 132 Features)
+# --- Augmentation (lighter), Stratified split, Normalization, Early stopping ---
+def augment_with_noise(X, y, num_fake=3, noise_level=0.003):
     X_aug = []
     y_aug = []
-    
     for i in range(len(X)):
         original_sample = X.iloc[i].values
         label = y.iloc[i]
-        
-        # Add original sample
+        # Original
         X_aug.append(original_sample)
         y_aug.append(label)
-        
-        # Add 'num_fake' noisy versions
+        # Noisy copies
         for _ in range(num_fake):
-            # Create random noise
             noise = np.random.normal(0, noise_level, size=original_sample.shape)
-            noisy_sample = original_sample + noise
-            X_aug.append(noisy_sample)
+            X_aug.append(original_sample + noise)
             y_aug.append(label)
-            
     return pd.DataFrame(X_aug, columns=X.columns), pd.Series(y_aug, name=y.name)
 
-# 1. Load Data
+# 1) Load data
 df = pd.read_csv('train_data.csv')
 X_raw = df.drop('class_name', axis=1)
 y_raw = df['class_name']
 
-print(f"Augmenting data: Adding 10 noisy samples per real ratio set...")
-X, y = augment_with_noise(X_raw, y_raw)
-print(f"New dataset size: {len(X)} samples")
-
-# 2. Auto-generate Label Map
-label_map = {label: idx for idx, label in enumerate(np.unique(y))}
+# 2) Label map
+label_map = {label: idx for idx, label in enumerate(np.unique(y_raw))}
 print(f"Detected Labels: {label_map}")
 
-# 3. Encode Data
-y_encoded = y.map(label_map)
-y_categorical = to_categorical(y_encoded)
+# 3) Stratified split on raw (no aug yet)
+X_train_raw, X_test_raw, y_train_raw, y_test_raw = train_test_split(
+    X_raw, y_raw, test_size=0.2, random_state=42, stratify=y_raw
+)
 
-# 4. Split Data (80% Train, 20% Test)
-X_train, X_test, y_train, y_test = train_test_split(X, y_categorical, test_size=0.2, random_state=42)
+# 4) Normalize using train statistics
+train_mean = X_train_raw.mean()
+train_std = X_train_raw.std().replace(0, 1e-6)
+X_train_norm = (X_train_raw - train_mean) / train_std
+X_test_norm = (X_test_raw - train_mean) / train_std
 
-# 5. Build Model
+# 5) Augment training only
+print("Augmenting train set with light Gaussian noise...")
+X_train_aug, y_train_aug = augment_with_noise(X_train_norm, y_train_raw)
+
+# 6) Encode labels
+y_train_idx = y_train_aug.map(label_map)
+y_test_idx = y_test_raw.map(label_map)
+y_train = to_categorical(y_train_idx)
+y_test = to_categorical(y_test_idx)
+
+# 7) Class weights (optional but helpful if imbalance)
+class_weights = compute_class_weight(
+    class_weight='balanced',
+    classes=np.unique(y_train_idx),
+    y=y_train_idx.values
+)
+class_weights = {i: w for i, w in enumerate(class_weights)}
+print(f"Class weights: {class_weights}")
+
+# 8) Model
 model = Sequential([
-    tf.keras.Input(shape=(132,)),  # 33 landmarks * 4 (x, y, z, visibility)
+    tf.keras.Input(shape=(NUM_FEATURES,)),  # 132 features
+    Dense(256, activation='relu'),
+    Dropout(0.3),
     Dense(128, activation='relu'),
-    Dropout(0.2),
-    Dense(64, activation='relu'),
-    Dropout(0.2),
+    Dropout(0.3),
     Dense(len(label_map), activation='softmax')
 ])
 
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# 6. Train
+early_stop = EarlyStopping(patience=5, restore_best_weights=True, monitor='val_loss')
+
+# 9) Train
 history = model.fit(
-    X_train, y_train,
+    X_train_aug, y_train,
     epochs=50,
     batch_size=32,
-    validation_data=(X_test, y_test),
+    validation_data=(X_test_norm, y_test),
+    class_weight=class_weights,
+    callbacks=[early_stop],
     verbose=1
 )
 
-loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+loss, accuracy = model.evaluate(X_test_norm, y_test, verbose=0)
 print(f"\n✅ Final Accuracy: {accuracy*100:.2f}%")
+
+# 10) Save normalization stats for inference
+norm_stats = {
+    "mean": train_mean.tolist(),
+    "std": train_std.tolist(),
+    "label_map": label_map
+}
+with open('norm_stats.json', 'w') as f:
+    json.dump(norm_stats, f)
+print("✅ Saved normalization stats to norm_stats.json")
 
 # Save the Keras model for weight export
 MODEL_PATH = 'posture_model.keras'
 model.save(MODEL_PATH)
 print(f"✅ Keras model saved to {MODEL_PATH}")
+```
 
 # @title Step 4: Convert to TFLite & Download
 TFLITE_PATH = 'custom_posture_model.tflite'
