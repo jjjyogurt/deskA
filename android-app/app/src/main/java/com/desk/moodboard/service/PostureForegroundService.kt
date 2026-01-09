@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import android.content.res.Configuration
@@ -48,6 +49,8 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
     val currentResult = _currentResult.asStateFlow()
     private val _poseOverlay = MutableStateFlow<PoseOverlay?>(null)
     val poseOverlay = _poseOverlay.asStateFlow()
+    private var lastLmLog = 0L
+    private val lmLogIntervalMs = 1500L
 
     inner class LocalBinder : Binder() {
         fun getService(): PostureForegroundService = this@PostureForegroundService
@@ -172,6 +175,32 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
                 )
                 updateNotification("Current Posture: ${classification.state.label}")
                 Log.d(TAG, "Result state=${classification.state} conf=${classification.confidence}")
+            }
+            // Throttled landmark debug log to verify motion and ranges
+            val now = SystemClock.uptimeMillis()
+            if (landmarks != null && now - lastLmLog >= lmLogIntervalMs) {
+                lastLmLog = now
+                val nose = landmarks.getOrNull(0)
+                val lShoulder = landmarks.getOrNull(11)
+                val rShoulder = landmarks.getOrNull(12)
+                val lHip = landmarks.getOrNull(23)
+                val rHip = landmarks.getOrNull(24)
+
+                val xs = landmarks.map { it.x() }
+                val ys = landmarks.map { it.y() }
+                val zs = landmarks.map { it.z() }
+
+                Log.d(
+                    "PoseDebug",
+                    "Nose=${nose?.x()},${nose?.y()},${nose?.z()} " +
+                            "LShoulder=${lShoulder?.x()},${lShoulder?.y()},${lShoulder?.z()} " +
+                            "RShoulder=${rShoulder?.x()},${rShoulder?.y()},${rShoulder?.z()} " +
+                            "LHip=${lHip?.x()},${lHip?.y()},${lHip?.z()} " +
+                            "RHip=${rHip?.x()},${rHip?.y()},${rHip?.z()} " +
+                            "RangeX=${xs.minOrNull()}..${xs.maxOrNull()} " +
+                            "RangeY=${ys.minOrNull()}..${ys.maxOrNull()} " +
+                            "RangeZ=${zs.minOrNull()}..${zs.maxOrNull()}"
+                )
             }
         } else {
             Log.d(TAG, "No poseResult in bundle")

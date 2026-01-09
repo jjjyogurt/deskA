@@ -12,6 +12,8 @@ import android.util.Log
 class PostureClassifier(context: Context) {
 
     private var interpreter: Interpreter? = null
+    private var lastClsLog = 0L
+    private val clsLogIntervalMs = 2000L
     
     init {
         Log.d("PostureClassifier", "Initializing PostureClassifier init block...")
@@ -74,6 +76,14 @@ class PostureClassifier(context: Context) {
             frame[base + 1] = lm.y()
             frame[base + 2] = lm.z()
             frame[base + 3] = lm.visibility().orElse(0f)
+        }
+
+        // Throttled frame debug log (first 16 floats for sanity)
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastClsLog >= clsLogIntervalMs) {
+            lastClsLog = now
+            val sample = frame.take(16).joinToString(",") { String.format("%.3f", it) }
+            Log.d("PoseDebug", "Frame[0..15]=$sample ... size=${frame.size}")
         }
 
         // Prepare output buffer using model's output shape
