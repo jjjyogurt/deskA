@@ -485,8 +485,10 @@ private fun CameraPreviewDialog(
                         val canvasHeight = size.height
 
                         fun map(lm: com.google.mediapipe.tasks.components.containers.NormalizedLandmark): Offset {
-                            val x = if (overlay.isFrontCamera) 1f - lm.x() else lm.x()
-                            return Offset(x * canvasWidth, lm.y() * canvasHeight)
+                            // Since the image MediaPipe sees is already rotated and mirrored,
+                            // the landmarks it returns are already in "Mirror Space".
+                            // No extra flip needed.
+                            return Offset(lm.x() * canvasWidth, lm.y() * canvasHeight)
                         }
 
                         poseConnections.forEach { (a, b) ->

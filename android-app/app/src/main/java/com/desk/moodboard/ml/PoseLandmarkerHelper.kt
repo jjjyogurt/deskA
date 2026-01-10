@@ -81,31 +81,34 @@ class PoseLandmarkerHelper(
         }
         val frameTime = SystemClock.uptimeMillis()
 
-        // Respect rotation so landmarks are not sideways
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        val imageOptions = ImageProcessingOptions.builder()
-            .setRotationDegrees(rotationDegrees)
-            .build()
-
         val originalBitmap = imageProxy.toBitmap() ?: return
         
-        // FLIP THE IMAGE IF IT'S THE FRONT CAMERA
-        // This ensures the ML model sees "Real World" coordinates (un-mirrored).
-        val processedBitmap = if (isFrontCamera) {
-            val matrix = Matrix().apply {
+        // 1. ROTATE AND FLIP MANUALLY
+        // This ensures the image MediaPipe sees is EXACTLY what you see on screen
+        // (Upright and Mirrored).
+        val matrix = Matrix().apply {
+            // First, rotate to upright (usually 270 on front cam)
+            postRotate(rotationDegrees.toFloat())
+            // Then, flip horizontally if it's the front camera
+            if (isFrontCamera) {
                 postScale(-1f, 1f, originalBitmap.width / 2f, originalBitmap.height / 2f)
             }
-            Bitmap.createBitmap(
-                originalBitmap, 0, 0,
-                originalBitmap.width, originalBitmap.height,
-                matrix, true
-            ).also {
-                // Recycle the original bitmap if we created a new one
-                if (it != originalBitmap) originalBitmap.recycle()
-            }
-        } else {
-            originalBitmap
         }
+        
+        val processedBitmap = Bitmap.createBitmap(
+            originalBitmap, 0, 0,
+            originalBitmap.width, originalBitmap.height,
+            matrix, true
+        ).also {
+            if (it != originalBitmap) originalBitmap.recycle()
+        }
+
+        // 2. TELL MEDIAPIPE ROTATION IS 0
+        // Because we already rotated the bitmap ourselves.
+        val imageOptions = ImageProcessingOptions.builder()
+            .setRotationDegrees(0)
+            .build()
 
         val bitmapBuffer = BitmapImageBuilder(processedBitmap).build()
 
@@ -113,12 +116,6 @@ class PoseLandmarkerHelper(
             detectAsync(bitmapBuffer, imageOptions, frameTime)
         } catch (t: Throwable) {
             Log.e(TAG, "detectAsync failed", t)
-        } finally {
-            // Note: MediaPipe takes ownership of the bitmap in the builder or uses it immediately.
-            // We don't recycle processedBitmap here because it might be needed for async processing
-            // depending on the library's internal behavior, but in LIVE_STREAM it's usually safe 
-            // once it's built into an MPImage and passed to detectAsync.
-            // However, to be safe and avoid leaks, we should manage this carefully.
         }
     }
 

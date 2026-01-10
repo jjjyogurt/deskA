@@ -105,7 +105,7 @@ class PostureClassifier(context: Context) {
         targetIndices.forEachIndexed { i, idx ->
             val lm = landmarks[idx]
             val base = i * 4
-            // NO MIRRORING HERE. The image was already flipped in PoseLandmarkerHelper.
+            // Landmarks are already mirrored because the input image to MediaPipe was flipped.
             frame[base] = (lm.x() - centerX) / scale
             frame[base + 1] = (lm.y() - centerY) / scale
             frame[base + 2] = (lm.z() - centerZ) / scale
