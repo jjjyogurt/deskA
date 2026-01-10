@@ -1,6 +1,8 @@
 package com.desk.moodboard.ml
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.SystemClock
 import android.util.Log
 import androidx.camera.core.ImageProxy
@@ -45,9 +47,9 @@ class PoseLandmarkerHelper(
         try {
             val optionsBuilder = PoseLandmarker.PoseLandmarkerOptions.builder()
                 .setBaseOptions(baseOptionBuilder.build())
-                .setMinPoseDetectionConfidence(minPoseDetectionConfidence) // Added "Pose"2222 back
-                .setMinTrackingConfidence(minPoseTrackingConfidence)       // Keep without "Pose"
-                .setMinPosePresenceConfidence(minPosePresenceConfidence)   // Added "Pose" back
+                .setMinPoseDetectionConfidence(minPoseDetectionConfidence)
+                .setMinTrackingConfidence(minPoseTrackingConfidence)
+                .setMinPosePresenceConfidence(minPosePresenceConfidence)
                 .setRunningMode(runningMode)
 
             if (runningMode == RunningMode.LIVE_STREAM) {
@@ -74,8 +76,7 @@ class PoseLandmarkerHelper(
     fun detectLiveStream(imageProxy: ImageProxy, isFrontCamera: Boolean) {
         if (runningMode != RunningMode.LIVE_STREAM) {
             throw IllegalArgumentException(
-                "Attempting to call detectLiveStream" +
-                        " while not using RunningMode.LIVE_STREAM"
+                "Attempting to call detectLiveStream while not using RunningMode.LIVE_STREAM"
             )
         }
         val frameTime = SystemClock.uptimeMillis()
@@ -86,15 +87,38 @@ class PoseLandmarkerHelper(
             .setRotationDegrees(rotationDegrees)
             .build()
 
-        // Copy out RGB bits from the frame to a bitmap object
-        val bitmapBuffer =
-            BitmapImageBuilder(imageProxy.toBitmap())
-                .build()
+        val originalBitmap = imageProxy.toBitmap() ?: return
+        
+        // FLIP THE IMAGE IF IT'S THE FRONT CAMERA
+        // This ensures the ML model sees "Real World" coordinates (un-mirrored).
+        val processedBitmap = if (isFrontCamera) {
+            val matrix = Matrix().apply {
+                postScale(-1f, 1f, originalBitmap.width / 2f, originalBitmap.height / 2f)
+            }
+            Bitmap.createBitmap(
+                originalBitmap, 0, 0,
+                originalBitmap.width, originalBitmap.height,
+                matrix, true
+            ).also {
+                // Recycle the original bitmap if we created a new one
+                if (it != originalBitmap) originalBitmap.recycle()
+            }
+        } else {
+            originalBitmap
+        }
+
+        val bitmapBuffer = BitmapImageBuilder(processedBitmap).build()
 
         try {
             detectAsync(bitmapBuffer, imageOptions, frameTime)
         } catch (t: Throwable) {
-            android.util.Log.e(TAG, "detectAsync failed", t)
+            Log.e(TAG, "detectAsync failed", t)
+        } finally {
+            // Note: MediaPipe takes ownership of the bitmap in the builder or uses it immediately.
+            // We don't recycle processedBitmap here because it might be needed for async processing
+            // depending on the library's internal behavior, but in LIVE_STREAM it's usually safe 
+            // once it's built into an MPImage and passed to detectAsync.
+            // However, to be safe and avoid leaks, we should manage this carefully.
         }
     }
 
@@ -123,6 +147,29 @@ class PoseLandmarkerHelper(
         landmarkerListener?.onError(error.message ?: "An unknown error has occurred")
     }
 
+    // Extension to convert ImageProxy to Bitmap
+    private fun ImageProxy.toBitmap(): Bitmap? {
+        val buffer = planes[0].buffer
+        val pixelStride = planes[0].pixelStride
+        val rowStride = planes[0].rowStride
+        val rowPadding = rowStride - pixelStride * width
+
+        val bitmap = Bitmap.createBitmap(
+            width + rowPadding / pixelStride,
+            height,
+            Bitmap.Config.ARGB_8888
+        )
+        bitmap.copyPixelsFromBuffer(buffer)
+        
+        return if (rowPadding > 0) {
+            Bitmap.createBitmap(bitmap, 0, 0, width, height).also {
+                if (it != bitmap) bitmap.recycle()
+            }
+        } else {
+            bitmap
+        }
+    }
+
     companion object {
         private const val TAG = "PoseLandmarkerHelper"
     }
@@ -139,9 +186,3 @@ class PoseLandmarkerHelper(
         fun onResults(resultBundle: ResultBundle)
     }
 }
-
-
-
-
-
-

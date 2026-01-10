@@ -25,6 +25,7 @@ import com.desk.moodboard.ml.PostureAnalyzer
 import com.desk.moodboard.ml.PostureClassifier
 import com.desk.moodboard.ml.PostureResult
 import com.desk.moodboard.ml.PostureState
+import com.desk.moodboard.ml.PoseOverlay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.ExecutorService
@@ -45,6 +46,9 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
     
     private val _currentResult = MutableStateFlow(PostureResult(PostureState.UNKNOWN, 0f))
     val currentResult = _currentResult.asStateFlow()
+
+    private val _poseOverlay = MutableStateFlow<PoseOverlay?>(null)
+    val poseOverlay = _poseOverlay.asStateFlow()
 
     inner class LocalBinder : Binder() {
         fun getService(): PostureForegroundService = this@PostureForegroundService
@@ -80,10 +84,9 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
         Log.d(TAG, "setupML start")
         poseLandmarkerHelper = PoseLandmarkerHelper(
             context = this,
-            // Lower thresholds temporarily to ensure detection in low confidence scenarios
-            minPoseDetectionConfidence = 0.3f,
-            minPoseTrackingConfidence = 0.3f,
-            minPosePresenceConfidence = 0.3f,
+            minPoseDetectionConfidence = 0.5f,
+            minPoseTrackingConfidence = 0.5f,
+            minPosePresenceConfidence = 0.5f,
             landmarkerListener = this
         )
         classifier = PostureClassifier(this)
@@ -97,7 +100,6 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
             try {
                 val cameraProvider = cameraProviderFuture.get()
 
-                // Prefer landscape; align rotation/aspect similar to MediaPipe sample
                 val rotation = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
                     Surface.ROTATION_90
                 } else {
@@ -110,16 +112,13 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
                     return@addListener
                 }
 
-                // Initialize Preview use case
                 preview = Preview.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .setTargetRotation(rotation)
                     .build().also { builtPreview ->
-                        // If UI requested a surface before preview existed, apply it now
                         pendingSurfaceProvider?.let { builtPreview.setSurfaceProvider(it) }
                     }
 
-                // Initialize ImageAnalysis use case
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .setTargetRotation(rotation)
@@ -133,12 +132,8 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
                 val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
                 cameraProvider.unbindAll()
-                // Bind both Preview and ImageAnalysis to the service lifecycle
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis)
-                Log.d(
-                    TAG,
-                    "Background camera and analysis started successfully. rotation=$rotation provider=${pendingSurfaceProvider != null}"
-                )
+                Log.d(TAG, "Background camera and analysis started successfully.")
             } catch (e: Exception) {
                 Log.e(TAG, "Use case binding failed", e)
             }
@@ -149,19 +144,28 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
         val poseResult = resultBundle.results.firstOrNull()
         if (poseResult != null) {
             val landmarks = poseResult.landmarks().firstOrNull()
-            val count = landmarks?.size ?: 0
-            Log.d(TAG, "Landmarks count=$count")
-            if (count == 0) {
-                Log.w(TAG, "No landmarks detected")
+            if (landmarks == null || landmarks.isEmpty()) {
+                _poseOverlay.value = null
+                return
             }
+
             val classification = classifier?.classify(poseResult)
             if (classification != null) {
                 _currentResult.value = classification.copy(inferenceTime = resultBundle.inferenceTime)
+                
+                // Update the overlay for the UI.
+                // Note: landmarks here are in "real world" space because we flipped the image in PoseLandmarkerHelper.
+                _poseOverlay.value = PoseOverlay(
+                    landmarks = ArrayList(landmarks),
+                    imageWidth = resultBundle.inputImageWidth,
+                    imageHeight = resultBundle.inputImageHeight,
+                    isFrontCamera = true
+                )
+                
                 updateNotification("Current Posture: ${classification.state.label}")
-                Log.d(TAG, "Result state=${classification.state} conf=${classification.confidence}")
             }
         } else {
-            Log.d(TAG, "No poseResult in bundle")
+            _poseOverlay.value = null
         }
     }
 
@@ -211,6 +215,3 @@ class PostureForegroundService : Service(), LifecycleOwner, PoseLandmarkerHelper
         private const val NOTIFICATION_ID = 1001
     }
 }
-
-
-
