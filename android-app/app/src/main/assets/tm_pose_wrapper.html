@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>TM Pose Wrapper</title>
+    <script src="tf.min.js"></script>
+    <script src="teachablemachine-pose.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: black; }
+        canvas { display: none; }
+    </style>
+    <script type="text/javascript">
+        // Using relative path for WebViewAssetLoader
+        const MODEL_PATH = "./TM/"; 
+        let model;
+        let canvas, ctx;
+
+        async function init() {
+            if (model) {
+                console.log("Model already exists");
+                return;
+            }
+            if (window.isInitializing) return;
+            window.isInitializing = true;
+
+            console.log("Initializing model...");
+            
+            canvas = document.getElementById('input-canvas');
+            if (!canvas) {
+                window.isInitializing = false;
+                setTimeout(init, 100);
+                return;
+            }
+            ctx = canvas.getContext('2d');
+
+            let attempts = 0;
+            while (typeof tmPose === 'undefined' && attempts < 50) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+
+            if (typeof tmPose === 'undefined') {
+                console.error("tmPose not found");
+                if (window.AndroidInterface) window.AndroidInterface.onError("tmPose not found");
+                window.isInitializing = false;
+                return;
+            }
+
+            try {
+                // tmPose.load takes the paths to model.json and metadata.json
+                model = await tmPose.load(MODEL_PATH + "model.json", MODEL_PATH + "metadata.json");
+                console.log("Model loaded successfully");
+                if (window.AndroidInterface) window.AndroidInterface.onModelLoaded();
+            } catch (e) {
+                console.error("Load failed", e);
+                if (window.AndroidInterface) window.AndroidInterface.onError(e.toString());
+            } finally {
+                window.isInitializing = false;
+            }
+        }
+
+        async function predict(base64Image) {
+            if (!model) return;
+            
+            const img = new Image();
+            img.onload = async () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                try {
+                    // Simple predict from canvas
+                    const prediction = await model.predict(canvas);
+                    
+                    if (window.AndroidInterface) {
+                        window.AndroidInterface.onPredictionResults(JSON.stringify(prediction));
+                    }
+                } catch (e) {
+                    console.error("Predict error", e);
+                }
+            };
+            img.src = "data:image/jpeg;base64," + base64Image;
+        }
+
+        window.init = init;
+        window.predict = predict;
+        window.onload = init;
+    </script>
+</head>
+<body>
+    <canvas id="input-canvas"></canvas>
+</body>
+</html>

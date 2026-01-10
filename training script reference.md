@@ -15,22 +15,39 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import EarlyStopping
 
 # ============================================================================
-# Configuration: Raw Landmark Features (132 Features)
+# Configuration: Scaled & Recentered Landmark Features (68 Features)
 # ============================================================================
-NUM_FEATURES = 132  # 33 landmarks * (x, y, z, visibility)
+TARGET_INDICES = [8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19]
+NUM_FEATURES = len(TARGET_INDICES) * 4  # 17 landmarks * 4 (x, y, z, visibility)
 
 def get_raw_features(landmarks):
     """
     Args:
         landmarks: Normalized pose landmarks (0.0 to 1.0).
     Returns:
-        A flat list of 132 features (x, y, z, visibility for each).
+        A flat list of 68 features: (x, y, z) recentered on shoulders 
+        and scaled by nose-to-shoulder vertical distance, plus visibility.
     """
+    # 1. Calculate shoulder midpoint (Landmarks 11 and 12)
+    center_x = (landmarks[11].x + landmarks[12].x) / 2
+    center_y = (landmarks[11].y + landmarks[12].y) / 2
+    center_z = (landmarks[11].z + landmarks[12].z) / 2
+
+    # 2. Calculate vertical scale factor (Nose is landmark 0)
+    # Distance from nose height to shoulder line height
+    scale = abs(landmarks[0].y - center_y)
+    scale = max(scale, 0.05)  # Minimum scale to prevent division by zero
+
     features = []
-    for lm in landmarks:
-        # We now include visibility. This helps the model identify 
-        # occlusions common in desk setups (e.g., desk blocking elbows).
-        features.extend([lm.x, lm.y, lm.z, lm.visibility])
+    # 3. Extract, recenter, and scale target landmarks
+    for idx in TARGET_INDICES:
+        lm = landmarks[idx]
+        features.extend([
+            (lm.x - center_x) / scale,
+            (lm.y - center_y) / scale,
+            (lm.z - center_z) / scale,
+            lm.visibility
+        ])
     return features
 
 # Unzip the uploaded dataset
@@ -48,7 +65,11 @@ dataset_path = 'posture_dataset'
 output_csv_path = 'train_data.csv'
 
 # Setup MediaPipe
-mp_pose = mp.solutions.pose
+try:
+    import mediapipe.python.solutions.pose as mp_pose
+except (AttributeError, ImportError):
+    mp_pose = mp.solutions.pose
+
 pose = mp_pose.Pose(
     static_image_mode=True,
     min_detection_confidence=0.5,
@@ -92,7 +113,6 @@ with open(output_csv_path, mode='w', newline='') as f:
 
 print(f"✅ Data saved to {output_csv_path}")
 
-```
 # @title Step 3: Train Neural Network (Single Frame, 132 Features)
 # --- Augmentation (lighter), Stratified split, Normalization, Early stopping ---
 def augment_with_noise(X, y, num_fake=3, noise_level=0.003):
@@ -141,13 +161,13 @@ y_test_idx = y_test_raw.map(label_map)
 y_train = to_categorical(y_train_idx)
 y_test = to_categorical(y_test_idx)
 
-# 7) Class weights (optional but helpful if imbalance)
-class_weights = compute_class_weight(
+# 7) Class weights (helpful if imbalance)
+class_weights_arr = compute_class_weight(
     class_weight='balanced',
     classes=np.unique(y_train_idx),
     y=y_train_idx.values
 )
-class_weights = {i: w for i, w in enumerate(class_weights)}
+class_weights = {i: w for i, w in enumerate(class_weights_arr)}
 print(f"Class weights: {class_weights}")
 
 # 8) Model
@@ -192,7 +212,6 @@ print("✅ Saved normalization stats to norm_stats.json")
 MODEL_PATH = 'posture_model.keras'
 model.save(MODEL_PATH)
 print(f"✅ Keras model saved to {MODEL_PATH}")
-```
 
 # @title Step 4: Convert to TFLite & Download
 TFLITE_PATH = 'custom_posture_model.tflite'
@@ -224,7 +243,6 @@ import numpy as np
 
 # --- Configuration (Must match previous steps) ---
 TFLITE_PATH = 'custom_posture_model.tflite'
-# X_test, y_test, and label_map are assumed to be defined in Cell 3
 
 # 1. Load the TFLite model content
 try:
@@ -232,7 +250,6 @@ try:
         tflite_model_content = f.read()
 except FileNotFoundError:
     print(f"❌ ERROR: TFLITE file not found at {TFLITE_PATH}. Ensure Step 4 was completed.")
-    # Use a dummy variable or exit if file not found
     raise
 
 # 2. Initialize the TFLite Interpreter
@@ -243,8 +260,8 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-# Prepare test data: TFLite requires float32 input
-test_data = X_test.values.astype(np.float32)
+# Prepare test data: TFLite requires float32 input (use normalized test set)
+test_data = X_test_norm.values.astype(np.float32)
 
 # Convert one-hot encoded y_test back to single index labels for comparison
 true_labels_index = np.argmax(y_test, axis=1) 
@@ -286,11 +303,11 @@ for i in range(num_test_samples):
 tflite_accuracy = correct_predictions / num_test_samples
 
 print("\n" + "=" * 50)
-print(f"Trained Keras Model Accuracy (from Step 3): {model.history.history['val_accuracy'][-1]*100:.2f}%")
+print(f"Trained Keras Model Accuracy (from Step 3): {history.history['val_accuracy'][-1]*100:.2f}%")
 print(f"TFLite Model Accuracy (Inference Test):      {tflite_accuracy*100:.2f}%")
 print("=" * 50)
 
-if tflite_accuracy >= model.history.history['val_accuracy'][-1] - 0.01:
+if tflite_accuracy >= history.history['val_accuracy'][-1] - 0.01:
     print("✅ SUCCESS: TFLite accuracy closely matches Keras accuracy. The conversion is valid.")
 else:
     print("⚠️ WARNING: TFLite accuracy dropped significantly. Check conversion settings.")

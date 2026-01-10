@@ -12,8 +12,6 @@ import android.util.Log
 class PostureClassifier(context: Context) {
 
     private var interpreter: Interpreter? = null
-    private var lastClsLog = 0L
-    private val clsLogIntervalMs = 2000L
     
     init {
         Log.d("PostureClassifier", "Initializing PostureClassifier init block...")
@@ -55,51 +53,79 @@ class PostureClassifier(context: Context) {
     }
 
     fun classify(result: PoseLandmarkerResult): PostureResult {
-        // Use normalized image landmarks (camera space)
-        val landmarks = result.landmarks().firstOrNull()
-        if (landmarks == null || landmarks.size < 33) {
-            return PostureResult(PostureState.UNKNOWN, 0f)
-        }
-
-        val intr = interpreter
-        if (intr == null) {
+        val landmarksList = result.landmarks()
+        
+        if (interpreter == null) {
             Log.e("PostureClassifier", "Inference failed: Interpreter is null.")
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
-
-        // Build one frame of 132 features (x, y, z, visibility for 33 landmarks)
-        val frame = FloatArray(132)
-        for (i in 0 until 33) {
-            val lm = landmarks[i]
-            val base = i * 4
-            frame[base] = lm.x()
-            frame[base + 1] = lm.y()
-            frame[base + 2] = lm.z()
-            frame[base + 3] = lm.visibility().orElse(0f)
+        
+        if (landmarksList.isEmpty()) {
+            return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        // Throttled frame debug log (first 16 floats for sanity)
-        val now = android.os.SystemClock.uptimeMillis()
-        if (now - lastClsLog >= clsLogIntervalMs) {
-            lastClsLog = now
-            val sample = frame.take(16).joinToString(",") { String.format("%.3f", it) }
-            Log.d("PoseDebug", "Frame[0..15]=$sample ... size=${frame.size}")
+        // Extract landmarks (take first person detected)
+        val landmarks = landmarksList[0]
+        
+        // --- HALLUCINATION GUARD ---
+        // True human detections usually have higher visibility.
+        // We sum up the visibility scores to ensure it's not a background "ghost".
+        var totalVisibility = 0f
+        landmarks.forEach { totalVisibility += it.visibility().orElse(0f) }
+        val avgVisibility = totalVisibility / 33f
+        if (avgVisibility < 0.4f) {
+            Log.d("PostureClassifier", "Ignoring potential hallucination (Avg visibility: $avgVisibility)")
+            return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        // Prepare output buffer using model's output shape
-        val outShape = intr.getOutputTensor(0).shape()
-        val outBatch = if (outShape.isNotEmpty()) outShape[0] else 1
-        val outClasses = if (outShape.size >= 2) outShape[1] else 5
-        val output = Array(outBatch) { FloatArray(outClasses) }
+        // --- LANDMARK NORMALIZATION (Centering & Scaling) ---
+        if (landmarks.size < 33) {
+            Log.w("PostureClassifier", "Insufficient landmarks: ${landmarks.size}")
+            return PostureResult(PostureState.UNKNOWN, 0f)
+        }
+
+        val nose = landmarks[0]
+        val leftShoulder = landmarks[11]
+        val rightShoulder = landmarks[12]
+        
+        // 1. Translation: Center relative to shoulders
+        val centerX = (leftShoulder.x() + rightShoulder.x()) / 2f
+        val centerY = (leftShoulder.y() + rightShoulder.y()) / 2f
+        val centerZ = (leftShoulder.z() + rightShoulder.z()) / 2f
+
+        // 2. Stable Scale: Use vertical distance (Nose to Shoulder Line)
+        // This is more stable for desk-work posture than shoulder width.
+        val verticalScale = Math.abs(nose.y() - centerY).coerceAtLeast(0.05f)
+
+        // Prepare input tensor (17 landmarks * 4 values = 68 floats)
+        // Order: 8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19
+        val targetIndices = listOf(8, 6, 4, 0, 1, 3, 7, 10, 9, 20, 16, 14, 12, 11, 13, 15, 19)
+        val input = FloatArray(targetIndices.size * 4)
+        
+        targetIndices.forEachIndexed { index, landmarkIdx ->
+            val landmark = landmarks[landmarkIdx]
+            val baseIdx = index * 4
+            // Mirror X coordinates by using (centerX - x) instead of (x - centerX)
+            // This aligns un-mirrored MediaPipe input with mirrored training data
+            input[baseIdx] = (centerX - landmark.x()) / verticalScale
+            input[baseIdx + 1] = (landmark.y() - centerY) / verticalScale
+            input[baseIdx + 2] = (landmark.z() - centerZ) / verticalScale
+            input[baseIdx + 3] = landmark.visibility().orElse(0f)
+        }
+
+        // Prepare output tensor (5 classes)
+        val output = Array(1) { FloatArray(5) }
 
         try {
-            intr.run(arrayOf(frame), output)
+            // Run inference
+            interpreter?.run(arrayOf(input), output)
         } catch (e: Exception) {
             Log.e("PostureClassifier", "Inference runtime error: ${e.message}", e)
             return PostureResult(PostureState.UNKNOWN, 0f)
         }
 
-        val probabilities = output.firstOrNull() ?: return PostureResult(PostureState.UNKNOWN, 0f)
+        // Find max probability
+        val probabilities = output[0]
         var maxIdx = 0
         var maxProb = 0f
         probabilities.forEachIndexed { index, prob ->
@@ -108,12 +134,14 @@ class PostureClassifier(context: Context) {
                 maxIdx = index
             }
         }
-
+        
         Log.d(
             "PostureClassifier",
             "Raw probs=${probabilities.joinToString()} maxIdx=$maxIdx maxProb=$maxProb"
         )
 
+        // --- CONFIDENCE GUARD ---
+        // If the model is not confident enough (threshold 0.35), return UNKNOWN.
         if (maxProb < 0.35f) {
             return PostureResult(PostureState.UNKNOWN, maxProb)
         }
