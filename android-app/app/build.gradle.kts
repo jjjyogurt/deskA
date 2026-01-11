@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -83,6 +85,33 @@ dependencies {
 
     // MediaPipe Vision
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
+
+    // Gemini AI (keeping it for now, but will be unused)
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+
+    // OkHttp for Doubao API
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Kotlin serialization & datetime
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
+
+    // Android Security
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Room Database
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
+
+    // WorkManager for reminders
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // Koin DI
+    val koinVersion = "3.5.3"
+    implementation("io.insert-koin:koin-android:$koinVersion")
+    implementation("io.insert-koin:koin-androidx-compose:$koinVersion")
 
     // LiteRT (Successor to TFLite) - Version 1.0.1+ supports the latest opcodes (v12)
     // Using LiteRT avoids duplicate class conflicts with MediaPipe 0.10.14+

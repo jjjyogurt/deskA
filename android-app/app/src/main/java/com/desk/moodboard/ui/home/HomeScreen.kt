@@ -1,83 +1,251 @@
 package com.desk.moodboard.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.desk.moodboard.ui.theme.AccentOrange
-import com.desk.moodboard.ui.theme.BackgroundGrey
-import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
-import com.desk.moodboard.ui.theme.YogurtPeach
-import com.desk.moodboard.ui.theme.YogurtSky
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import com.desk.moodboard.ui.theme.*
+import com.desk.moodboard.ui.assistant.AssistantViewModel
+import com.desk.moodboard.ui.assistant.ChatBubble
+import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import kotlinx.datetime.toJavaLocalDate
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    assistantViewModel: AssistantViewModel = koinViewModel(),
+    calendarViewModel: CalendarViewModel = koinInject()
+) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = BackgroundGrey,
     ) {
         val scroll = rememberScrollState()
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scroll)
-                .padding(horizontal = Dimens.screenPadding, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
+                .padding(horizontal = Dimens.screenPadding, vertical = 12.dp)
         ) {
-            // Left Column
-            Column(
+            // ... header code ...
+            Row(
                 modifier = Modifier
-                    .weight(0.55f)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                MoodboardCard()
-                HealthScoreCard()
+                val currentDateTime = LocalDateTime.now()
+                val formatter = DateTimeFormatter.ofPattern("E, MMM d h:mm a", Locale.ENGLISH)
+                Text(
+                    text = currentDateTime.format(formatter),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp
+                    ),
+                    color = TextGrey
+                )
             }
 
-            // Right Column
-            Column(
-                modifier = Modifier
-                    .weight(0.45f)
-                    .fillMaxHeight()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
             ) {
-                CalendarCard()
+                // Left Column
+                Column(
+                    modifier = Modifier
+                        .weight(0.55f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
+                ) {
+                    MoodboardCard()
+                    HealthScoreCard()
+                }
+
+                // Right Column
+                Column(
+                    modifier = Modifier
+                        .weight(0.45f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
+                ) {
+                    CalendarCard(calendarViewModel)
+                    AssistantCard(assistantViewModel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssistantCard(viewModel: AssistantViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    var inputText by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.onToggleRecording(context)
+        }
+    }
+
+    // Auto-scroll to bottom when new messages arrive
+    LaunchedEffect(uiState.messages.size) {
+        if (uiState.messages.isNotEmpty()) {
+            listState.animateScrollToItem(uiState.messages.size - 1)
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(280.dp),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubbleOutline,
+                        contentDescription = null,
+                        tint = TextGrey,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "AI CALENDAR ASSISTANT",
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 10.sp),
+                        color = TextGrey,
+                        letterSpacing = 0.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Chat Area
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(uiState.messages) { message ->
+                        ChatBubble(message)
+                    }
+                    if (uiState.isLoading) {
+                        item {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().height(2.dp),
+                                color = AccentOrange,
+                                trackColor = FillGrey.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
+                }
+
+                // Input Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        placeholder = { Text("Ask me...", color = TextGrey, fontSize = 12.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = FillGrey,
+                            unfocusedBorderColor = FillGrey,
+                            cursorColor = AccentOrange
+                        ),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = {
+                            viewModel.onSendMessage(inputText)
+                            inputText = ""
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xFF333333), RoundedCornerShape(6.dp)),
+                        enabled = inputText.isNotBlank()
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { 
+                            when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+                                PackageManager.PERMISSION_GRANTED -> viewModel.onToggleRecording(context)
+                                else -> permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(if (uiState.isRecording) AccentOrange else FillGrey.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.Mic,
+                            contentDescription = "Record",
+                            tint = if (uiState.isRecording) Color.White else TextDark,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -225,9 +393,11 @@ private fun ColumnScope.HealthScoreCard() {
 }
 
 @Composable
-private fun CalendarCard() {
+private fun CalendarCard(viewModel: CalendarViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    
     Card(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth().height(300.dp),
         shape = RoundedCornerShape(Dimens.cardCorner),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -241,78 +411,72 @@ private fun CalendarCard() {
                 modifier = Modifier.padding(Dimens.cardPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Header with Controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "December 2025",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = TextDark
-                    )
+                    Column {
+                        val headerText = when (uiState.viewMode) {
+                            CalendarViewMode.MONTH -> "${uiState.selectedDate.month} ${uiState.selectedDate.year}"
+                            CalendarViewMode.WEEK -> "Week of ${uiState.selectedDate.dayOfMonth} ${uiState.selectedDate.month}"
+                            CalendarViewMode.DAY -> "${uiState.selectedDate.dayOfWeek}, ${uiState.selectedDate.month} ${uiState.selectedDate.dayOfMonth}"
+                        }
+                        Text(
+                            text = headerText,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = TextDark
+                        )
+                    }
+                    
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        CalendarNavButton("<")
-                        CalendarNavButton(">")
+                        CalendarNavButton("<") { viewModel.previous() }
+                        CalendarNavButton(">") { viewModel.next() }
+                    }
+                }
+
+                // View Mode Toggles
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    ViewModeButton("Day", uiState.viewMode == CalendarViewMode.DAY) {
+                        viewModel.setViewMode(CalendarViewMode.DAY)
+                    }
+                    ViewModeButton("Week", uiState.viewMode == CalendarViewMode.WEEK) {
+                        viewModel.setViewMode(CalendarViewMode.WEEK)
+                    }
+                    ViewModeButton("Month", uiState.viewMode == CalendarViewMode.MONTH) {
+                        viewModel.setViewMode(CalendarViewMode.MONTH)
                     }
                 }
                 
-                // Calendar Grid
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // Days Header
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
-                            Text(
-                                text = day,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextGrey,
-                                fontSize = 10.sp
-                            )
-                        }
+                // Dynamic View Content
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when (uiState.viewMode) {
+                        CalendarViewMode.MONTH -> MonthView(uiState.selectedDate, uiState.events, viewModel)
+                        CalendarViewMode.WEEK -> WeekView(uiState.selectedDate, uiState.events)
+                        CalendarViewMode.DAY -> DayView(uiState.selectedDate, uiState.events)
                     }
-                    
-                    val decRows = listOf(
-                        listOf(null, 1, 2, 3, 4, 5, 6),
-                        listOf(7, 8, 9, 10, 11, 12, 13),
-                        listOf(14, 15, 16, 17, 18, 19, 20),
-                        listOf(21, 22, 23, 24, 25, 26, 27),
-                        listOf(28, 29, 30, 31, null, null, null)
-                    )
-                    
-                    decRows.forEach { row ->
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            row.forEach { day ->
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(22.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (day != null) {
-                                        val isSelected = day == 24
-                                        if (isSelected) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp, 20.dp)
-                                                    .background(AccentOrange, RoundedCornerShape(4.dp)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "$day",
-                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
-                                                )
-                                            }
-                                        } else {
-                                            Text(
-                                                text = "$day",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                                color = TextDark.copy(alpha = 0.9f),
-                                                fontSize = 10.sp
-                                            )
-                                        }
-                                    }
+                }
+
+                // Selected Day Events
+                if (uiState.viewMode == CalendarViewMode.MONTH) {
+                    val selectedDayEvents = uiState.events.filter { it.startTime.date == uiState.selectedDate }
+                    if (selectedDayEvents.isNotEmpty()) {
+                        Divider(color = FillGrey.copy(alpha = 0.3f))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            selectedDayEvents.take(2).forEach { event ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(6.dp).background(AccentOrange, CircleShape))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = event.title,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextDark,
+                                        maxLines = 1
+                                    )
                                 }
                             }
                         }
@@ -324,18 +488,236 @@ private fun CalendarCard() {
 }
 
 @Composable
-private fun CalendarNavButton(label: String) {
-    Box(
-        modifier = Modifier
-            .size(24.dp)
-            .background(FillGrey.copy(alpha = 0.4f), RoundedCornerShape(4.dp)),
-        contentAlignment = Alignment.Center
+private fun ViewModeButton(label: String, isSelected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(4.dp),
+        color = if (isSelected) AccentOrange.copy(alpha = 0.1f) else Color.Transparent,
+        border = if (isSelected) BorderStroke(1.dp, AccentOrange) else null
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            color = TextDark,
-            fontSize = 11.sp
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) AccentOrange else TextGrey,
+                fontSize = 9.sp
+            )
         )
+    }
+}
+
+@Composable
+private fun MonthView(
+    selectedDate: LocalDate,
+    events: List<com.desk.moodboard.data.model.CalendarEvent>,
+    viewModel: CalendarViewModel
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Days Header
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextGrey,
+                    fontSize = 10.sp
+                )
+            }
+        }
+
+        val firstDayOfMonth = LocalDate(selectedDate.year, selectedDate.month, 1)
+        val daysInMonth = selectedDate.toJavaLocalDate().lengthOfMonth()
+        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.ordinal % 7 // Adjusted for Sunday start
+
+        val days = mutableListOf<Int?>()
+        repeat(firstDayOfWeek + 1) { days.add(null) } // Adjusted for 0-based ordinal
+        for (i in 1..daysInMonth) { days.add(i) }
+        while (days.size % 7 != 0) { days.add(null) }
+
+        days.chunked(7).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                row.forEach { day ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(24.dp)
+                            .clickable(enabled = day != null) {
+                                day?.let { viewModel.selectDate(LocalDate(selectedDate.year, selectedDate.month, it)) }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (day != null) {
+                            val isSelected = day == selectedDate.dayOfMonth
+                            val dateAtDay = LocalDate(selectedDate.year, selectedDate.month, day)
+                            val hasEvent = events.any { it.startTime.date == dateAtDay }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp, 18.dp)
+                                            .background(AccentOrange, RoundedCornerShape(4.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$day",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "$day",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                        color = TextDark.copy(alpha = 0.9f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                if (hasEvent && !isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 1.dp)
+                                            .size(3.dp)
+                                            .background(AccentOrange, CircleShape)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekView(
+    selectedDate: LocalDate,
+    events: List<com.desk.moodboard.data.model.CalendarEvent>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Simple list of days in the week
+        val firstDayOfWeek = selectedDate.minus(selectedDate.dayOfWeek.ordinal.toLong(), DateTimeUnit.DAY)
+
+        (0..6).forEach { i ->
+            val day = firstDayOfWeek.plus(i.toLong(), DateTimeUnit.DAY)
+            val dayEvents = events.filter { it.startTime.date == day }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        if (day == selectedDate) AccentOrange.copy(alpha = 0.05f) else Color.Transparent,
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = day.dayOfWeek.name.take(3),
+                    modifier = Modifier.width(30.dp),
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = if (day == selectedDate) AccentOrange else TextGrey,
+                    fontSize = 10.sp
+                )
+                Text(
+                    text = day.dayOfMonth.toString(),
+                    modifier = Modifier.width(20.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextDark,
+                    fontSize = 10.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                if (dayEvents.isNotEmpty()) {
+                    Text(
+                        text = dayEvents.first().title,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextGrey,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(FillGrey.copy(alpha = 0.3f))
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayView(
+    selectedDate: LocalDate,
+    events: List<com.desk.moodboard.data.model.CalendarEvent>
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // Time slots
+        (8..20).forEach { hour ->
+            val hourEvents = events.filter { it.startTime.hour == hour }
+            Row(
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = String.format("%02d:00", hour),
+                    modifier = Modifier.width(40.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextGrey,
+                    fontSize = 10.sp
+                )
+                if (hourEvents.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.weight(1f).fillMaxHeight().padding(vertical = 2.dp),
+                        colors = CardDefaults.cardColors(containerColor = AccentOrange.copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.padding(start = 8.dp)) {
+                            Text(
+                                text = hourEvents.first().title,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = AccentOrange,
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(FillGrey.copy(alpha = 0.3f))
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarNavButton(label: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(24.dp),
+        shape = RoundedCornerShape(4.dp),
+        color = FillGrey.copy(alpha = 0.4f)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = TextDark,
+                fontSize = 11.sp
+            )
+        }
     }
 }

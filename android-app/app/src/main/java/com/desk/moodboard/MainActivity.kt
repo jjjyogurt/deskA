@@ -44,6 +44,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.desk.moodboard.ui.assistant.AssistantScreen
+import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.focus.FocusScreen
 import com.desk.moodboard.ui.health.HealthScreen
 import com.desk.moodboard.ui.home.HomeScreen
@@ -54,6 +56,7 @@ import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.MoodboardTheme
 import com.desk.moodboard.ui.theme.TextDark
 import com.desk.moodboard.ui.theme.TextGrey
+import org.koin.androidx.compose.koinViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,7 +86,7 @@ private data class NavItem(
 private fun MoodboardApp() {
     val navController = rememberNavController()
     val navItems = listOf(
-        NavItem("home", "Home", null), // remove home icon per request
+        NavItem("home", "Home", null),
         NavItem("health", "Health", null),
         NavItem("focus", "Focus", null),
         NavItem("settings", "Settings", null),
