@@ -113,10 +113,9 @@ dependencies {
     implementation("io.insert-koin:koin-android:$koinVersion")
     implementation("io.insert-koin:koin-androidx-compose:$koinVersion")
 
-    // LiteRT (Successor to TFLite) - Version 1.0.1+ supports the latest opcodes (v12)
-    // Using LiteRT avoids duplicate class conflicts with MediaPipe 0.10.14+
-    implementation("com.google.ai.edge.litert:litert:1.0.1")
-    implementation("com.google.ai.edge.litert:litert-support:1.0.1")
+    // TensorFlow Lite
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))

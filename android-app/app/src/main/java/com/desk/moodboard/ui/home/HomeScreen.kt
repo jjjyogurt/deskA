@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -119,6 +121,27 @@ private fun AssistantCard(viewModel: AssistantViewModel) {
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    // Breathing Animation
+    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -236,6 +259,11 @@ private fun AssistantCard(viewModel: AssistantViewModel) {
                         },
                         modifier = Modifier
                             .size(36.dp)
+                            .graphicsLayer(
+                                scaleX = if (uiState.isRecording) scale else 1f,
+                                scaleY = if (uiState.isRecording) scale else 1f,
+                                alpha = if (uiState.isRecording) alpha else 1f
+                            )
                             .background(if (uiState.isRecording) AccentOrange else FillGrey.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
                     ) {
                         Icon(
@@ -423,11 +451,11 @@ private fun CalendarCard(viewModel: CalendarViewModel) {
                             CalendarViewMode.WEEK -> "Week of ${uiState.selectedDate.dayOfMonth} ${uiState.selectedDate.month}"
                             CalendarViewMode.DAY -> "${uiState.selectedDate.dayOfWeek}, ${uiState.selectedDate.month} ${uiState.selectedDate.dayOfMonth}"
                         }
-                        Text(
+                    Text(
                             text = headerText,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = TextDark
-                        )
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextDark
+                    )
                     }
                     
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -513,21 +541,21 @@ private fun MonthView(
     events: List<com.desk.moodboard.data.model.CalendarEvent>,
     viewModel: CalendarViewModel
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        // Days Header
-        Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
-                Text(
-                    text = day,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
-                    fontSize = 10.sp
-                )
-            }
-        }
-
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Days Header
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
+                            Text(
+                                text = day,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextGrey,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    
         val firstDayOfMonth = LocalDate(selectedDate.year, selectedDate.month, 1)
         val daysInMonth = selectedDate.toJavaLocalDate().lengthOfMonth()
         val firstDayOfWeek = firstDayOfMonth.dayOfWeek.ordinal % 7 // Adjusted for Sunday start
@@ -538,43 +566,43 @@ private fun MonthView(
         while (days.size % 7 != 0) { days.add(null) }
 
         days.chunked(7).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                row.forEach { day ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            row.forEach { day ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
                             .height(24.dp)
                             .clickable(enabled = day != null) {
                                 day?.let { viewModel.selectDate(LocalDate(selectedDate.year, selectedDate.month, it)) }
                             },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (day != null) {
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (day != null) {
                             val isSelected = day == selectedDate.dayOfMonth
                             val dateAtDay = LocalDate(selectedDate.year, selectedDate.month, day)
                             val hasEvent = events.any { it.startTime.date == dateAtDay }
 
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
                                             .size(24.dp, 18.dp)
-                                            .background(AccentOrange, RoundedCornerShape(4.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$day",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
-                                        )
-                                    }
-                                } else {
-                                    Text(
-                                        text = "$day",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                        color = TextDark.copy(alpha = 0.9f),
-                                        fontSize = 10.sp
-                                    )
-                                }
+                                                    .background(AccentOrange, RoundedCornerShape(4.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "$day",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
+                                                )
+                                            }
+                                        } else {
+                                            Text(
+                                                text = "$day",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                                color = TextDark.copy(alpha = 0.9f),
+                                                fontSize = 10.sp
+                                            )
+                                        }
                                 if (hasEvent && !isSelected) {
                                     Box(
                                         modifier = Modifier
@@ -691,8 +719,8 @@ private fun DayView(
                         }
                     }
                 } else {
-                    Box(
-                        modifier = Modifier
+    Box(
+        modifier = Modifier
                             .weight(1f)
                             .height(1.dp)
                             .background(FillGrey.copy(alpha = 0.3f))
@@ -712,12 +740,12 @@ private fun CalendarNavButton(label: String, onClick: () -> Unit) {
         color = FillGrey.copy(alpha = 0.4f)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                color = TextDark,
-                fontSize = 11.sp
-            )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = TextDark,
+            fontSize = 11.sp
+        )
         }
     }
 }

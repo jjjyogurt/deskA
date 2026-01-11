@@ -6,7 +6,8 @@ import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.security.SecureKeyManager
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.home.CalendarViewModel
-import com.desk.moodboard.voice.VoiceProcessor
+import com.desk.moodboard.voice.AudioRecorder
+import com.desk.moodboard.voice.WhisperProcessor
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
@@ -19,10 +20,11 @@ val appModule = module {
         DoubaoService(apiKey, endpointId)
     }
     single { CalendarRepository(androidContext()) }
-    single { VoiceProcessor(get<DoubaoService>()) }
+    single { AudioRecorder(androidContext()) }
+    single { WhisperProcessor(androidContext()) }
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
 
-    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get<CalendarViewModel>()) }
+    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get()) }
 }
 
