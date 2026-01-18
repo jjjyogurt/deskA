@@ -8,10 +8,11 @@ import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.voice.AudioRecorder
-import com.desk.moodboard.voice.WhisperProcessor
+import com.desk.moodboard.voice.VolcengineASRService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
 import java.util.*
@@ -20,6 +21,7 @@ data class AssistantUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isRecording: Boolean = false,
     val isLoading: Boolean = false,
+    val currentTranscript: String = "",
     val error: String? = null
 )
 
@@ -27,7 +29,7 @@ class AssistantViewModel(
     private val doubaoService: DoubaoService?,
     private val calendarRepository: CalendarRepository,
     private val audioRecorder: AudioRecorder,
-    private val whisperProcessor: WhisperProcessor,
+    private val volcengineASRService: VolcengineASRService,
     private val conflictDetector: ConflictDetector,
     private val calendarViewModel: CalendarViewModel
 ) : ViewModel() {
@@ -35,7 +37,8 @@ class AssistantViewModel(
     private val _uiState = MutableStateFlow(AssistantUiState())
     val uiState: StateFlow<AssistantUiState> = _uiState
 
-    private var whisperInitialized = false
+    private var asrInitialized = false
+    private var recordingJob: Job? = null
 
     init {
         addMessage("Hi! I'm your AI calendar assistant. What would you like to do?", false)
@@ -49,32 +52,35 @@ class AssistantViewModel(
 
     fun onToggleRecording(context: android.content.Context) {
         viewModelScope.launch {
-            if (!whisperInitialized) {
-                _uiState.value = _uiState.value.copy(isLoading = true)
-                whisperProcessor.initialize()
+            if (!asrInitialized) {
                 audioRecorder.initialize()
-                whisperInitialized = true
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                asrInitialized = true
             }
 
             if (_uiState.value.isRecording) {
-                // STOP recording and TRANSCRIPTION
+                // STOP recording
                 _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
+                val pcm = audioRecorder.stopRecordingRawPcm()
+                val finalTranscript = withTimeoutOrNull(10000) {
+                    volcengineASRService.transcribePcm(pcm)
+                } ?: ""
+                _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
                 
-                val audioData = audioRecorder.stopRecording()
-                val transcript = whisperProcessor.transcribe(audioData)
+                recordingJob?.cancel()
+                volcengineASRService.stopStreaming()
                 
-                _uiState.value = _uiState.value.copy(isLoading = false)
-                if (transcript.isNotBlank() && !transcript.startsWith("Error:")) {
-                    addMessage(transcript, true)
-                    processTextInput(transcript)
+                if (finalTranscript.isNotBlank()) {
+                    addMessage(finalTranscript, true)
+                    processTextInput(finalTranscript)
                 } else {
-                    addMessage(transcript.ifBlank { "Couldn't hear anything." }, false)
+                    addMessage("Couldn't hear anything.", false)
                 }
             } else {
                 // START recording
-                _uiState.value = _uiState.value.copy(isRecording = true)
+                _uiState.value = _uiState.value.copy(isRecording = true, currentTranscript = "")
                 audioRecorder.startRecording()
+
+                // No streaming during recording; send after stop to match LLM ASR demo
             }
         }
     }

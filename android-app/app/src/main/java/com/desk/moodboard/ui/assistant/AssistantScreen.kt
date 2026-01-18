@@ -71,6 +71,11 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
             items(uiState.messages) { message ->
                 ChatBubble(message)
             }
+            if (uiState.isRecording && uiState.currentTranscript.isNotEmpty()) {
+                item {
+                    ChatBubble(ChatMessage("preview", uiState.currentTranscript, true))
+                }
+            }
             if (uiState.isLoading) {
                 item {
                     CircularProgressIndicator(
@@ -173,4 +178,7 @@ fun ChatBubble(message: ChatMessage) {
         )
     }
 }
+
+
+
 
