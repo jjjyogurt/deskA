@@ -32,6 +32,7 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
     val isServiceRunning = _isServiceRunning.asStateFlow()
 
     private var postureService: PostureForegroundService? = null
+    private var pendingSurfaceProvider: Preview.SurfaceProvider? = null
     
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -39,6 +40,9 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
             postureService = binder.getService()
             _isServiceRunning.value = true
             Log.d(TAG, "Service connected")
+            pendingSurfaceProvider?.let { provider ->
+                postureService?.setPreviewSurfaceProvider(provider)
+            }
             
             viewModelScope.launch {
                 postureService?.currentResult?.collect { result ->
@@ -97,6 +101,7 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
 
     fun attachPreviewToService(surfaceProvider: Preview.SurfaceProvider) {
         // Ensure service is running before attaching the provider
+        pendingSurfaceProvider = surfaceProvider
         val context = getApplication<Application>().applicationContext
         if (postureService == null) {
             val intent = Intent(context, PostureForegroundService::class.java)
@@ -107,6 +112,7 @@ class PostureViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun detachPreviewFromService() {
+        pendingSurfaceProvider = null
         postureService?.setPreviewSurfaceProvider(null)
     }
 
