@@ -19,7 +19,8 @@ import java.util.concurrent.TimeUnit
 data class DoubaoChatRequest(
     val model: String,
     val messages: List<DoubaoMessage>,
-    val temperature: Float = 0.3f
+    val temperature: Float = 0.3f,
+    val caching: DoubaoCaching? = null
 )
 
 @Serializable
@@ -30,6 +31,7 @@ data class DoubaoMessage(
 
 @Serializable
 data class DoubaoChatResponse(
+    val id: String? = null,
     val choices: List<DoubaoChoice>
 )
 
@@ -38,9 +40,15 @@ data class DoubaoChoice(
     val message: DoubaoMessage
 )
 
+@Serializable
+data class DoubaoCaching(
+    val type: String = "enabled",
+    val prefix: Boolean = true
+)
+
 class DoubaoService(
     private val apiKey: String,
-    private val endpointId: String = "ep-20260111114926-fm8t8"
+    private val endpointId: String = "ep-20260118231116-btzkj"
 ) {
 
     private val client = OkHttpClient.Builder()
@@ -63,6 +71,8 @@ class DoubaoService(
             Return ONLY JSON: {
                 "action": "CREATE|LIST|UPDATE|DELETE|QUERY|CHAT",
                 "chatResponse": "Your natural conversational response if the action is CHAT",
+                "needsClarification": true,
+                "clarificationQuestion": "If needed, ask a follow-up question",
                 "title": "event title",
                 "description": "additional details",
                 "startTime": "YYYY-MM-DDTHH:MM:SS",
@@ -80,6 +90,8 @@ class DoubaoService(
             3. Use ISO format for dates. Current year is 2026.
             4. IMPORTANT: If a field is not applicable, use null instead of an empty string. Especially for startTime and endTime.
             5. Default time: 09:00 if not specified. Default duration: 60 minutes.
+            6. If the request is ambiguous (e.g., "set a Friday meeting"), set needsClarification=true and ask a specific question in clarificationQuestion (e.g., "Which Friday?").
+            7. If the user says "meeting with <name>", set the title to "Meeting with <name>".
         """.trimIndent()
 
         val currentTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString()
@@ -90,22 +102,29 @@ class DoubaoService(
             messages = listOf(
                 DoubaoMessage("system", systemPrompt),
                 DoubaoMessage("user", userPrompt)
-            )
+            ),
+            caching = DoubaoCaching(type = "enabled", prefix = true)
         )
 
         val body = json.encodeToString(DoubaoChatRequest.serializer(), requestBody)
             .toRequestBody("application/json".toMediaType())
 
+        val trimmedKey = apiKey.trim()
+        Log.d("DoubaoService", "Using API key len=${trimmedKey.length}, suffix=${trimmedKey.takeLast(6)}")
+        Log.d("DoubaoService", "Chat model: $endpointId")
+
         val request = Request.Builder()
             .url(baseUrl)
             .post(body)
-            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Authorization", "Bearer $trimmedKey")
             .build()
 
         return try {
             Log.d("DoubaoService", "Sending prompt to Doubao: $userPrompt")
             val responseText = executeRequest(request)
+            Log.d("DoubaoService", "RAW RESPONSE: $responseText")
             val doubaoResponse = json.decodeFromString<DoubaoChatResponse>(responseText)
+            Log.d("DoubaoService", "Cache ID: ${doubaoResponse.id}")
             val rawContent = doubaoResponse.choices.firstOrNull()?.message?.content ?: return null
             
             Log.d("DoubaoService", "Raw AI Response: $rawContent")

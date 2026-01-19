@@ -93,6 +93,7 @@ class AssistantViewModel(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
+            addMessage("Ok got it, scheduling now.", false)
             val request = doubaoService.parseNaturalLanguage(text)
             
             if (request != null) {
@@ -105,21 +106,31 @@ class AssistantViewModel(
     }
 
     private suspend fun handleEventRequest(request: EventRequest) {
+        if (request.needsClarification) {
+            addMessage(request.clarificationQuestion ?: "Could you clarify that?", false)
+            return
+        }
         when (request.action) {
             EventAction.CHAT -> {
                 addMessage(request.chatResponse ?: "How can I help you?", false)
             }
             EventAction.CREATE -> {
+                val derivedTitle = if (request.title.isBlank() && request.attendees.isNotEmpty()) {
+                    "Meeting with ${request.attendees.joinToString(", ")}"
+                } else {
+                    request.title
+                }
                 val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 val existingEvents = calendarRepository.getEvents(now, now.plus(7, DateTimeUnit.DAY))
-                val conflict = conflictDetector.detectConflicts(request, existingEvents)
+                val conflict = conflictDetector.detectConflicts(request.copy(title = derivedTitle), existingEvents)
                 
                 if (conflict.hasConflict) {
                     addMessage("Conflict: ${conflict.reasoning}", false)
                 } else {
-                    if (calendarRepository.createEvent(request)) {
-                        addMessage("Scheduled: ${request.title}", false)
-                        request.startTime?.let { calendarViewModel.selectDate(it.date) }
+                    val finalRequest = request.copy(title = derivedTitle)
+                    if (calendarRepository.createEvent(finalRequest)) {
+                        addMessage("Scheduled: ${finalRequest.title}", false)
+                        finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
                         calendarViewModel.refreshEvents()
                     } else {
                         addMessage("Failed to schedule.", false)

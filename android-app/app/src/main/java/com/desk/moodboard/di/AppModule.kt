@@ -15,7 +15,7 @@ import org.koin.dsl.module
 val appModule = module {
     single { SecureKeyManager(androidContext()) }
     single { 
-        val apiKey = "Zv7AE4-YmY15rJwWZXGfJodbv8d4Y2sj"
+        val apiKey = "c7dbff8b-3031-4009-92da-6b4db8b97b1b"
         val endpointId = "ep-20260111114926-fm8t8"
         DoubaoService(apiKey, endpointId)
     }

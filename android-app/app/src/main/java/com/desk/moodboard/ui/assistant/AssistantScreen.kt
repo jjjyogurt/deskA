@@ -119,23 +119,29 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
                         inputText = ""
                     },
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(34.dp)
                         .background(Color(0xFF333333), RoundedCornerShape(8.dp)),
                     enabled = inputText.isNotBlank()
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White)
+                    Icon(
+                        Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(
                     onClick = { viewModel.onToggleRecording(context) },
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(34.dp)
                         .background(if (uiState.isRecording) AccentOrange else Color(0xFFF1F3F4), RoundedCornerShape(8.dp))
                 ) {
                     Icon(
                         Icons.Default.Mic,
                         contentDescription = "Record",
-                        tint = if (uiState.isRecording) Color.White else TextDark
+                        tint = if (uiState.isRecording) Color.White else TextDark,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

@@ -7,6 +7,8 @@ import kotlinx.datetime.LocalDateTime
 data class EventRequest(
     val action: EventAction,
     val chatResponse: String? = null,
+    val needsClarification: Boolean = false,
+    val clarificationQuestion: String? = null,
     val title: String = "",
     val description: String = "",
     val startTime: LocalDateTime? = null,

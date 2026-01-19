@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -217,61 +219,93 @@ private fun AssistantCard(viewModel: AssistantViewModel) {
                     }
                 }
 
-                // Input Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // Unified Clean Input Bar
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    color = FillGrey.copy(alpha = 0.2f)
                 ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f).height(42.dp),
-                        placeholder = { Text("Ask me...", color = TextGrey, fontSize = 12.sp) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = FillGrey,
-                            unfocusedBorderColor = FillGrey,
-                            cursorColor = AccentOrange
-                        ),
-                        textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    IconButton(
-                        onClick = {
-                            viewModel.onSendMessage(inputText)
-                            inputText = ""
-                        },
+                    Row(
                         modifier = Modifier
-                            .size(36.dp)
-                            .background(Color(0xFF333333), RoundedCornerShape(6.dp)),
-                        enabled = inputText.isNotBlank()
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(16.dp))
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = { 
-                            when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
-                                PackageManager.PERMISSION_GRANTED -> viewModel.onToggleRecording(context)
-                                else -> permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .graphicsLayer(
-                                scaleX = if (uiState.isRecording) scale else 1f,
-                                scaleY = if (uiState.isRecording) scale else 1f,
-                                alpha = if (uiState.isRecording) alpha else 1f
+                        // Mic Button (Left)
+                        IconButton(
+                            onClick = { 
+                                when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+                                    PackageManager.PERMISSION_GRANTED -> viewModel.onToggleRecording(context)
+                                    else -> permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .graphicsLayer(
+                                    scaleX = if (uiState.isRecording) scale else 1f,
+                                    scaleY = if (uiState.isRecording) scale else 1f,
+                                    alpha = if (uiState.isRecording) alpha else 1f
+                                )
+                        ) {
+                            Icon(
+                                Icons.Default.Mic,
+                                contentDescription = "Record",
+                                tint = if (uiState.isRecording) AccentOrange else TextDark,
+                                modifier = Modifier.size(20.dp)
                             )
-                            .background(if (uiState.isRecording) AccentOrange else FillGrey.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                    ) {
-                        Icon(
-                            Icons.Default.Mic,
-                            contentDescription = "Record",
-                            tint = if (uiState.isRecording) Color.White else TextDark,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Clean Input Field
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (inputText.isEmpty()) {
+                                Text(
+                                    "Ask me anything...", 
+                                    color = TextGrey, 
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.align(Alignment.CenterStart)
+                                )
+                            }
+                            BasicTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it },
+                                modifier = Modifier.fillMaxWidth().align(Alignment.CenterStart),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = TextDark,
+                                    fontSize = 14.sp
+                                ),
+                                cursorBrush = SolidColor(AccentOrange),
+                                singleLine = true
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Send Button (Right)
+                        IconButton(
+                            onClick = {
+                                viewModel.onSendMessage(inputText)
+                                inputText = ""
+                            },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    if (inputText.isNotBlank()) Color(0xFF333333) else Color.Transparent, 
+                                    CircleShape
+                                ),
+                            enabled = inputText.isNotBlank()
+                        ) {
+                            Icon(
+                                Icons.Default.Send, 
+                                contentDescription = "Send", 
+                                tint = if (inputText.isNotBlank()) Color.White else TextGrey.copy(alpha = 0.4f), 
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
