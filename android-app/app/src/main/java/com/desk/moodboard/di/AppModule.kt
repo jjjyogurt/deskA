@@ -1,11 +1,15 @@
 package com.desk.moodboard.di
 
+import androidx.room.Room
+import com.desk.moodboard.data.local.TodoDatabase
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
+import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.security.SecureKeyManager
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.home.CalendarViewModel
+import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
 import org.koin.android.ext.koin.androidContext
@@ -20,6 +24,13 @@ val appModule = module {
         DoubaoService(apiKey, endpointId)
     }
     single { CalendarRepository(androidContext()) }
+    single {
+        Room.databaseBuilder(androidContext(), TodoDatabase::class.java, "todo.db")
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+    single { get<TodoDatabase>().todoDao() }
+    single { TodoRepository(get()) }
     single { AudioRecorder(androidContext()) }
     single { 
         val appid = "5448745405"
@@ -31,5 +42,6 @@ val appModule = module {
     single { CalendarViewModel(get()) }
 
     viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get()) }
+    viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get()) }
 }
 

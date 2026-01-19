@@ -1,6 +1,7 @@
 package com.desk.moodboard.data.remote
 
 import android.util.Log
+import com.desk.moodboard.data.model.AssistantIntent
 import com.desk.moodboard.data.model.EventRequest
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -134,6 +135,86 @@ class DoubaoService(
             json.decodeFromString<EventRequest>(jsonText)
         } catch (e: Exception) {
             Log.e("DoubaoService", "Error calling Doubao: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun parseAssistantIntent(input: String): AssistantIntent? {
+        val systemPrompt = """
+            You are an AI assistant for a todo list and calendar. Classify intent and return ONLY JSON:
+            {
+                "intentType": "TODO|EVENT|CHAT",
+                "todo": {
+                    "title": "todo title",
+                    "description": "details",
+                    "priority": "LOW|MEDIUM|HIGH",
+                    "dueDate": "YYYY-MM-DD",
+                    "dueTime": "HH:MM:SS",
+                    "createCalendarEvent": true,
+                    "confidence": 0.8
+                },
+                "event": {
+                    "action": "CREATE|LIST|UPDATE|DELETE|QUERY|CHAT",
+                    "chatResponse": "response if action is CHAT",
+                    "needsClarification": false,
+                    "clarificationQuestion": null,
+                    "title": "event title",
+                    "description": "details",
+                    "startTime": "YYYY-MM-DDTHH:MM:SS",
+                    "endTime": "YYYY-MM-DDTHH:MM:SS",
+                    "duration": 60,
+                    "location": "location",
+                    "attendees": ["name"],
+                    "eventType": "MEETING|APPOINTMENT|REMINDER|DEADLINE|TASK",
+                    "confidence": 0.8
+                },
+                "chatResponse": "assistant reply if intentType is CHAT",
+                "needsClarification": false,
+                "clarificationQuestion": null,
+                "confidence": 0.8
+            }
+            
+            Rules:
+            1. If the user is making small tasks or reminders, use intentType TODO.
+            2. If the user is explicitly scheduling or creating calendar events, use intentType EVENT.
+            3. If the user says "add to calendar" for a todo, keep intentType TODO and set todo.createCalendarEvent=true.
+            4. If "add to calendar" is requested but time is missing, set needsClarification=true and ask for a time.
+            5. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
+            6. Use ISO formats. Current year is 2026.
+            7. Use null for unknown fields, not empty strings.
+            8. Do not invent a due time for TODO unless the user mentions a time.
+        """.trimIndent()
+
+        val currentTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString()
+        val userPrompt = "Current date/time: $currentTime\nParse this input: \"$input\""
+
+        val requestBody = DoubaoChatRequest(
+            model = endpointId,
+            messages = listOf(
+                DoubaoMessage("system", systemPrompt),
+                DoubaoMessage("user", userPrompt)
+            ),
+            caching = DoubaoCaching(type = "enabled", prefix = true)
+        )
+
+        val body = json.encodeToString(DoubaoChatRequest.serializer(), requestBody)
+            .toRequestBody("application/json".toMediaType())
+
+        val trimmedKey = apiKey.trim()
+        val request = Request.Builder()
+            .url(baseUrl)
+            .post(body)
+            .addHeader("Authorization", "Bearer $trimmedKey")
+            .build()
+
+        return try {
+            val responseText = executeRequest(request)
+            val doubaoResponse = json.decodeFromString<DoubaoChatResponse>(responseText)
+            val rawContent = doubaoResponse.choices.firstOrNull()?.message?.content ?: return null
+            val jsonText = extractJson(rawContent)
+            json.decodeFromString<AssistantIntent>(jsonText)
+        } catch (e: Exception) {
+            Log.e("DoubaoService", "Error calling Doubao for assistant intent: ${e.message}", e)
             null
         }
     }

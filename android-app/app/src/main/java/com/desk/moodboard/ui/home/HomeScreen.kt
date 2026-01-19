@@ -42,6 +42,7 @@ import kotlinx.datetime.TimeZone
 import com.desk.moodboard.ui.theme.*
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.assistant.ChatBubble
+import com.desk.moodboard.ui.home.TodoViewModel
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import android.Manifest
@@ -54,6 +55,7 @@ import kotlinx.datetime.toJavaLocalDate
 @Composable
 fun HomeScreen(
     assistantViewModel: AssistantViewModel = koinViewModel(),
+    todoViewModel: TodoViewModel = koinViewModel(),
     calendarViewModel: CalendarViewModel = koinInject()
 ) {
     Surface(
@@ -99,6 +101,7 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
                 ) {
                     MoodboardCard()
+                    TodoCard(todoViewModel)
                     HealthScoreCard()
                 }
 
@@ -111,6 +114,161 @@ fun HomeScreen(
                 ) {
                     CalendarCard(calendarViewModel)
                     AssistantCard(assistantViewModel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodoCard(viewModel: TodoViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    val infiniteTransition = rememberInfiniteTransition(label = "todo-breathing")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "todo-scale"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "todo-alpha"
+    )
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.onToggleRecording(context)
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
+        ) {
+            Column(
+                modifier = Modifier.padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Todo",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextDark
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(
+                                if (uiState.isRecording) AccentOrange.copy(alpha = 0.15f) else FillGrey.copy(alpha = 0.4f),
+                                CircleShape
+                            )
+                            .graphicsLayer(
+                                scaleX = if (uiState.isRecording) scale else 1f,
+                                scaleY = if (uiState.isRecording) scale else 1f,
+                                alpha = if (uiState.isRecording) alpha else 1f
+                            )
+                            .clickable {
+                                when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+                                    PackageManager.PERMISSION_GRANTED -> viewModel.onToggleRecording(context)
+                                    else -> permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Record",
+                            tint = if (uiState.isRecording) AccentOrange else TextGrey,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                uiState.statusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = TextGrey
+                    )
+                }
+
+                if (uiState.todos.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Say: “Add buy groceries tomorrow 6pm”",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = TextGrey
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(uiState.todos) { todo ->
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 6.dp)
+                                        .size(5.dp)
+                                        .background(AccentOrange, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = todo.title,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp),
+                                        color = TextDark,
+                                        maxLines = 1
+                                    )
+                                    val dueLabel = buildString {
+                                        if (todo.dueDate != null) append(todo.dueDate.toString())
+                                        if (todo.dueTime != null) {
+                                            if (isNotEmpty()) append(" ")
+                                            append(todo.dueTime.toString())
+                                        }
+                                    }
+                                    if (dueLabel.isNotBlank()) {
+                                        Text(
+                                            text = dueLabel,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = TextGrey
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
