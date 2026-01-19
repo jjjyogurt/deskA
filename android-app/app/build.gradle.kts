@@ -60,9 +60,9 @@ android {
 
     configurations.all {
         resolutionStrategy.eachDependency {
-            if (requested.group == "org.tensorflow" && 
+            if (requested.group == "org.tensorflow" &&
                 (requested.name == "tensorflow-lite" || requested.name == "tensorflow-lite-api")) {
-                useVersion("2.16.1")
+                useVersion("2.17.0")
             }
         }
     }
@@ -123,8 +123,8 @@ dependencies {
     implementation("io.insert-koin:koin-androidx-compose:$koinVersion")
 
     // TensorFlow Lite
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-api:2.16.1")
+    implementation("org.tensorflow:tensorflow-lite:2.17.0")
+    implementation("org.tensorflow:tensorflow-lite-api:2.17.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     // Firebase
