@@ -31,7 +31,22 @@ class TodoRepository(private val todoDao: TodoDao) {
         return id
     }
 
+    suspend fun update(item: TodoItem) {
+        todoDao.update(item.toEntity())
+    }
+
     private fun TodoEntity.toItem() = TodoItem(
+        id = id,
+        title = title,
+        description = description,
+        priority = priority,
+        dueDate = dueDate,
+        dueTime = dueTime,
+        createdAt = createdAt,
+        isDone = isDone
+    )
+
+    private fun TodoItem.toEntity() = TodoEntity(
         id = id,
         title = title,
         description = description,

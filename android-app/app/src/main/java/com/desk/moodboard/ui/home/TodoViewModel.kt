@@ -28,11 +28,18 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 
+enum class TodoFilter {
+    TODAY,
+    ALL,
+    COMPLETED
+}
+
 data class TodoUiState(
     val todos: List<TodoItem> = emptyList(),
     val isRecording: Boolean = false,
     val isLoading: Boolean = false,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val selectedFilter: TodoFilter = TodoFilter.TODAY
 )
 
 class TodoViewModel(
@@ -56,6 +63,16 @@ class TodoViewModel(
             todoRepository.observeTodos().collect { items ->
                 _uiState.update { it.copy(todos = items) }
             }
+        }
+    }
+
+    fun onSelectFilter(filter: TodoFilter) {
+        _uiState.update { it.copy(selectedFilter = filter) }
+    }
+
+    fun onToggleTodoDone(todo: TodoItem) {
+        viewModelScope.launch {
+            todoRepository.update(todo.copy(isDone = !todo.isDone))
         }
     }
 
