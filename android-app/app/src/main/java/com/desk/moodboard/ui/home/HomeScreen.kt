@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -32,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -155,13 +153,6 @@ private fun TodoCard(viewModel: TodoViewModel) {
         }
     }
 
-    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val visibleTodos = when (uiState.selectedFilter) {
-        TodoFilter.TODAY -> uiState.todos.filter { it.dueDate == today }
-        TodoFilter.ALL -> uiState.todos
-        TodoFilter.COMPLETED -> uiState.todos.filter { it.isDone }
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -218,58 +209,6 @@ private fun TodoCard(viewModel: TodoViewModel) {
                     }
                 }
 
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 4.dp),
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        FilterChip(
-                            selected = uiState.selectedFilter == TodoFilter.TODAY,
-                            onClick = { viewModel.onSelectFilter(TodoFilter.TODAY) },
-                            label = { Text("Today", fontSize = 9.sp) },
-                            modifier = Modifier.height(24.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentOrange.copy(alpha = 0.15f),
-                                selectedLabelColor = AccentOrange,
-                                containerColor = FillGrey.copy(alpha = 0.2f),
-                                labelColor = TextGrey
-                            ),
-                            border = BorderStroke(1.dp, FillGrey.copy(alpha = 0.4f))
-                        )
-                        FilterChip(
-                            selected = uiState.selectedFilter == TodoFilter.ALL,
-                            onClick = { viewModel.onSelectFilter(TodoFilter.ALL) },
-                            label = { Text("All", fontSize = 9.sp) },
-                            modifier = Modifier.height(24.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentOrange.copy(alpha = 0.15f),
-                                selectedLabelColor = AccentOrange,
-                                containerColor = FillGrey.copy(alpha = 0.2f),
-                                labelColor = TextGrey
-                            ),
-                            border = BorderStroke(1.dp, FillGrey.copy(alpha = 0.4f))
-                        )
-                        FilterChip(
-                            selected = uiState.selectedFilter == TodoFilter.COMPLETED,
-                            onClick = { viewModel.onSelectFilter(TodoFilter.COMPLETED) },
-                            label = { Text("Completed", fontSize = 9.sp) },
-                            modifier = Modifier.height(24.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentOrange.copy(alpha = 0.15f),
-                                selectedLabelColor = AccentOrange,
-                                containerColor = FillGrey.copy(alpha = 0.2f),
-                                labelColor = TextGrey
-                            ),
-                            border = BorderStroke(1.dp, FillGrey.copy(alpha = 0.4f))
-                        )
-                    }
-                }
-
                 uiState.statusMessage?.let { message ->
                     Text(
                         text = message,
@@ -278,7 +217,7 @@ private fun TodoCard(viewModel: TodoViewModel) {
                     )
                 }
 
-                if (visibleTodos.isEmpty()) {
+                if (uiState.todos.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -293,44 +232,23 @@ private fun TodoCard(viewModel: TodoViewModel) {
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 90.dp),
+                        modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(visibleTodos) { todo ->
+                        items(uiState.todos) { todo ->
                             Row(verticalAlignment = Alignment.Top) {
                                 Box(
                                     modifier = Modifier
-                                        .padding(top = 4.dp)
-                                        .size(14.dp)
-                                        .background(
-                                            if (todo.isDone) AccentOrange else Color.Transparent,
-                                            CircleShape
-                                        )
-                                        .border(1.dp, if (todo.isDone) AccentOrange else TextGrey, CircleShape)
-                                        .clickable { viewModel.onToggleTodoDone(todo) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (todo.isDone) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Completed",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                    }
-                                }
+                                        .padding(top = 6.dp)
+                                        .size(5.dp)
+                                        .background(AccentOrange, CircleShape)
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
                                         text = todo.title,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 12.sp,
-                                            textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None
-                                        ),
-                                        color = if (todo.isDone) TextGrey else TextDark,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp),
+                                        color = TextDark,
                                         maxLines = 1
                                     )
                                     val dueLabel = buildString {
@@ -343,10 +261,7 @@ private fun TodoCard(viewModel: TodoViewModel) {
                                     if (dueLabel.isNotBlank()) {
                                         Text(
                                             text = dueLabel,
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontSize = 10.sp,
-                                                textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None
-                                            ),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                             color = TextGrey
                                         )
                                     }
