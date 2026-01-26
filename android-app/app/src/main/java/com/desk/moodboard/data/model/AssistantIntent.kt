@@ -16,3 +16,4 @@ data class AssistantIntent(
     val confidence: Float? = null
 )
 
+
