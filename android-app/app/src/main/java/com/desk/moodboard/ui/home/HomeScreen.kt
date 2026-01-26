@@ -71,7 +71,6 @@ fun HomeScreen(
                         MoodboardCard(assistantViewModel)
                         TodoCard(todoViewModel)
                         NotesCard(todoViewModel)
-                        HealthScoreCard()
                     }
 
                     // Right Column

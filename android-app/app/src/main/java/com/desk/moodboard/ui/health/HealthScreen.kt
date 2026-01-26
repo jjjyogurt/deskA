@@ -124,6 +124,8 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
                 color = TextDark,
             )
 
+            HealthScoreCard()
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
@@ -152,7 +154,6 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
                 ) {
-                    HeartRateCard()
                     ReminderCard()
                 }
             }
@@ -319,33 +320,87 @@ private fun HydrationCard() {
 }
 
 @Composable
-private fun HeartRateCard() {
+private fun HealthScoreCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Dimens.cardCorner),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
                 .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Dimens.cardPadding),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.padding(Dimens.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(text = "Heart Rate", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark, modifier = Modifier.align(Alignment.Start))
                 Text(
-                    text = "Vision estimation",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
-                    modifier = Modifier.align(Alignment.Start)
+                    text = "Health Score",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextDark
                 )
-                Ring(value = 68, color = AccentRed, label = "BPM")
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Score Gauge
+                    Box(
+                        modifier = Modifier.size(90.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(90.dp)) {
+                            drawArc(
+                                color = FillGrey.copy(alpha = 0.3f),
+                                startAngle = 0f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "0",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 21.sp),
+                                color = TextDark
+                            )
+                            Text(
+                                text = "SCORE",
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontSize = 10.sp),
+                                color = TextGrey
+                            )
+                        }
+                    }
+                    
+                    // Status Pill
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "STATUS",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp, fontSize = 10.sp),
+                            color = TextGrey,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(FillGrey.copy(alpha = 0.5f), CircleShape)
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(6.dp).background(TextGrey, CircleShape))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Idle",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium, fontSize = 11.sp),
+                                    color = TextDark
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -572,35 +627,6 @@ private val poseConnections = listOf(
     27 to 29, 28 to 30, 29 to 31, 30 to 32,
     11 to 13, 13 to 15, 12 to 14, 14 to 16
 )
-
-@Composable
-private fun Ring(value: Int, color: Color, label: String) {
-    Box(
-        modifier = Modifier.size(70.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(modifier = Modifier.size(70.dp)) {
-            drawArc(
-                color = FillGrey.copy(alpha = 0.3f),
-                startAngle = -210f,
-                sweepAngle = 240f,
-                useCenter = false,
-                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round),
-            )
-            drawArc(
-                color = color.copy(alpha = 0.8f),
-                startAngle = -210f,
-                sweepAngle = 180f,
-                useCenter = false,
-                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round),
-            )
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "$value", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextDark)
-            Text(text = label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextGrey)
-        }
-    }
-}
 
 @Composable
 private fun ProgressBar(fraction: Float, color: Color, height: androidx.compose.ui.unit.Dp) {
