@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
 import com.desk.moodboard.ui.theme.AccentOrange
@@ -42,7 +43,7 @@ fun SwimmingFish(
         label = "tail_wag"
     )
 
-    // Subtle body "pulse" during recording to show it's "breathing" the sound
+    // Subtle body "pulse" during recording
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (isRecording) 1.1f else 1f,
@@ -53,11 +54,41 @@ fun SwimmingFish(
         label = "pulse"
     )
 
+    // Bubble animation logic
+    val bubbleTransition = rememberInfiniteTransition(label = "bubbles")
+    val bubble1Y by bubbleTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "b1_y"
+    )
+    val bubble2Y by bubbleTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing, delayMillis = 400),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "b2_y"
+    )
+    val bubbleAlpha by bubbleTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "bubble_alpha"
+    )
+
     Canvas(modifier = modifier.size(32.dp)) {
         val centerX = size.width / 2
         val centerY = size.height / 2
 
-        // Pre-calculate pixel values while in the DrawScope (which provides Density)
+        // Pre-calculate pixel values
         val swimPx = swimOffset.dp.toPx()
         val bodyWidth = 10.dp.toPx()
         val bodyHeight = 6.dp.toPx()
@@ -68,11 +99,27 @@ fun SwimmingFish(
         val eyeOffsetX = 6.dp.toPx()
         val eyeOffsetY = 1.5.dp.toPx()
 
+        if (isRecording) {
+            // Draw subtle bubbles floating up from the fish mouth area
+            drawCircle(
+                color = AccentOrange.copy(alpha = bubbleAlpha),
+                radius = 1.5.dp.toPx(),
+                center = Offset(centerX + 12.dp.toPx() + swimPx, centerY + bubble1Y.dp.toPx()),
+                style = Stroke(width = 0.5.dp.toPx())
+            )
+            drawCircle(
+                color = AccentOrange.copy(alpha = bubbleAlpha * 0.7f),
+                radius = 1.dp.toPx(),
+                center = Offset(centerX + 14.dp.toPx() + swimPx, centerY - 2.dp.toPx() + bubble2Y.dp.toPx()),
+                style = Stroke(width = 0.5.dp.toPx())
+            )
+        }
+
         withTransform({
             translate(swimPx, 0f)
             scale(pulseScale, pulseScale, Offset(centerX, centerY))
         }) {
-            // Body - Minimalist teardrop/ellipse shape
+            // Body
             val bodyPath = Path().apply {
                 moveTo(centerX + bodyWidth, centerY)
                 quadraticBezierTo(centerX, centerY - bodyHeight, centerX - bodyWidth, centerY)
@@ -81,7 +128,7 @@ fun SwimmingFish(
             }
             drawPath(bodyPath, color = AccentOrange)
 
-            // Tail - Minimalist triangle with wag animation
+            // Tail
             withTransform({
                 rotate(tailRotation, Offset(centerX - tailPivot, centerY))
             }) {
@@ -94,7 +141,7 @@ fun SwimmingFish(
                 drawPath(tailPath, color = AccentOrange)
             }
 
-            // Simple white eye for personality
+            // Eye
             drawCircle(
                 color = Color.White,
                 radius = eyeRadius,

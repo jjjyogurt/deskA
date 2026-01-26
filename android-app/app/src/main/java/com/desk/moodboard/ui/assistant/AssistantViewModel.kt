@@ -13,6 +13,7 @@ import com.desk.moodboard.voice.VolcengineASRService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
 import java.util.*
@@ -43,6 +44,13 @@ class AssistantViewModel(
 
     init {
         addMessage("Hi! I'm your Voice Agent. How can I help you today?", false)
+        
+        // Collect live transcript from ASR service
+        viewModelScope.launch {
+            volcengineASRService.transcriptFlow.collect { transcript ->
+                _uiState.update { it.copy(currentTranscript = transcript) }
+            }
+        }
     }
 
     fun onSendMessage(text: String) {
