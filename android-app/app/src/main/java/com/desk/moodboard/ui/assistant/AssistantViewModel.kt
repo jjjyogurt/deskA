@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.desk.moodboard.data.model.*
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
+import com.desk.moodboard.data.repository.NoteRepository
 import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.ui.home.CalendarViewModel
@@ -30,6 +31,7 @@ class AssistantViewModel(
     private val doubaoService: DoubaoService?,
     private val calendarRepository: CalendarRepository,
     private val todoRepository: TodoRepository,
+    private val noteRepository: NoteRepository,
     private val audioRecorder: AudioRecorder,
     private val volcengineASRService: VolcengineASRService,
     private val conflictDetector: ConflictDetector,
@@ -131,6 +133,22 @@ class AssistantViewModel(
                         handleEventRequest(eventReq)
                     }
                 }
+                AssistantIntentType.NOTE -> {
+                    val noteReq = intent.note
+                    if (noteReq == null || noteReq.content.isBlank()) {
+                        addMessage("Please say your idea again.", false)
+                        _uiState.value = _uiState.value.copy(isLoading = false)
+                        return@launch
+                    }
+                    val finalTitle = deriveShortTitle(noteReq.title, noteReq.content)
+                    val sanitized = noteReq.copy(title = finalTitle)
+                    try {
+                        noteRepository.insertFromRequest(sanitized, null)
+                        addMessage("Saved to Idea Notes: $finalTitle", false)
+                    } catch (error: Exception) {
+                        addMessage("I couldn't save that note. Please try again.", false)
+                    }
+                }
                 AssistantIntentType.CHAT -> {
                     addMessage(intent.chatResponse ?: "How can I help you?", false)
                 }
@@ -200,6 +218,18 @@ class AssistantViewModel(
         _uiState.value = _uiState.value.copy(
             messages = _uiState.value.messages + ChatMessage(UUID.randomUUID().toString(), text, isUser)
         )
+    }
+
+    private fun deriveShortTitle(title: String, content: String): String {
+        val titleWords = title.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        val contentWords = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        val preferred = if (titleWords.size >= 2) titleWords else contentWords
+        val padded = if (preferred.size >= 2) {
+            preferred
+        } else {
+            preferred + List(2 - preferred.size) { "Idea" }
+        }
+        return padded.take(3).joinToString(" ").ifBlank { "Idea Note" }
     }
 
     private fun LocalDateTime.plus(value: Int, unit: DateTimeUnit): LocalDateTime {

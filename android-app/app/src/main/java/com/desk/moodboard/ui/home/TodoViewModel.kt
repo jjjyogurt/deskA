@@ -6,10 +6,13 @@ import com.desk.moodboard.data.model.AssistantIntentType
 import com.desk.moodboard.data.model.EventAction
 import com.desk.moodboard.data.model.EventRequest
 import com.desk.moodboard.data.model.EventType
+import com.desk.moodboard.data.model.NoteItem
+import com.desk.moodboard.data.model.NoteRequest
 import com.desk.moodboard.data.model.TodoItem
 import com.desk.moodboard.data.model.TodoRequest
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
+import com.desk.moodboard.data.repository.NoteRepository
 import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.voice.AudioRecorder
@@ -36,15 +39,22 @@ enum class TodoFilter {
 
 data class TodoUiState(
     val todos: List<TodoItem> = emptyList(),
+    val notes: List<NoteItem> = emptyList(),
     val isRecording: Boolean = false,
     val isLoading: Boolean = false,
+    val isNoteRecording: Boolean = false,
+    val isNoteLoading: Boolean = false,
+    val isNoteSessionActive: Boolean = false,
+    val activeNoteSessionId: String? = null,
     val statusMessage: String? = null,
+    val noteStatusMessage: String? = null,
     val selectedFilter: TodoFilter = TodoFilter.TODAY
 )
 
 class TodoViewModel(
     private val doubaoService: DoubaoService?,
     private val todoRepository: TodoRepository,
+    private val noteRepository: NoteRepository,
     private val calendarRepository: CalendarRepository,
     private val audioRecorder: AudioRecorder,
     private val volcengineASRService: VolcengineASRService,
@@ -57,11 +67,17 @@ class TodoViewModel(
 
     private var asrInitialized = false
     private var recordingJob: Job? = null
+    private var noteSessionId: String? = null
 
     init {
         viewModelScope.launch {
             todoRepository.observeTodos().collect { items ->
                 _uiState.update { it.copy(todos = items) }
+            }
+        }
+        viewModelScope.launch {
+            noteRepository.observeNotes().collect { items ->
+                _uiState.update { it.copy(notes = items) }
             }
         }
     }
@@ -106,6 +122,76 @@ class TodoViewModel(
         }
     }
 
+    fun startNoteSession() {
+        if (_uiState.value.isNoteSessionActive) {
+            return
+        }
+        val newSessionId = UUID.randomUUID().toString()
+        noteSessionId = newSessionId
+        _uiState.update {
+            it.copy(
+                isNoteSessionActive = true,
+                activeNoteSessionId = newSessionId,
+                noteStatusMessage = "Idea Notes session started."
+            )
+        }
+    }
+
+    fun stopNoteSession() {
+        if (_uiState.value.isNoteRecording) {
+            audioRecorder.stopRecordingRawPcm()
+            volcengineASRService.stopStreaming()
+        }
+        noteSessionId = null
+        _uiState.update {
+            it.copy(
+                isNoteSessionActive = false,
+                activeNoteSessionId = null,
+                isNoteRecording = false,
+                isNoteLoading = false,
+                noteStatusMessage = "Idea Notes session stopped."
+            )
+        }
+    }
+
+    fun onToggleNoteRecording(context: android.content.Context) {
+        viewModelScope.launch {
+            if (!_uiState.value.isNoteSessionActive) {
+                _uiState.update { it.copy(noteStatusMessage = "Start a notes session first.") }
+                return@launch
+            }
+            if (_uiState.value.isRecording) {
+                _uiState.update { it.copy(noteStatusMessage = "Finish todo recording first.") }
+                return@launch
+            }
+            if (!asrInitialized) {
+                audioRecorder.initialize()
+                asrInitialized = true
+            }
+
+            if (_uiState.value.isNoteRecording) {
+                _uiState.update { it.copy(isNoteRecording = false, isNoteLoading = true) }
+                val pcm = audioRecorder.stopRecordingRawPcm()
+                val finalTranscript = withTimeoutOrNull(10000) {
+                    volcengineASRService.transcribePcm(pcm)
+                } ?: ""
+                _uiState.update { it.copy(isNoteLoading = false) }
+
+                recordingJob?.cancel()
+                volcengineASRService.stopStreaming()
+
+                if (finalTranscript.isNotBlank()) {
+                    processNoteTextInput(finalTranscript)
+                } else {
+                    _uiState.update { it.copy(noteStatusMessage = "Couldn't hear anything.") }
+                }
+            } else {
+                _uiState.update { it.copy(isNoteRecording = true, noteStatusMessage = "Listening for ideas...") }
+                audioRecorder.startRecording()
+            }
+        }
+    }
+
     private fun processTextInput(text: String) {
         if (doubaoService == null) {
             _uiState.update { it.copy(statusMessage = "API key not configured.") }
@@ -133,6 +219,7 @@ class TodoViewModel(
             when (intent.intentType) {
                 AssistantIntentType.TODO -> handleTodo(intent.todo)
                 AssistantIntentType.EVENT -> handleEvent(intent.event)
+                AssistantIntentType.NOTE -> handleNote(intent.note)
                 AssistantIntentType.CHAT -> {
                     _uiState.update {
                         it.copy(isLoading = false, statusMessage = intent.chatResponse ?: "How can I help?")
@@ -172,6 +259,86 @@ class TodoViewModel(
         } else {
             _uiState.update { it.copy(isLoading = false) }
         }
+    }
+
+    private fun processNoteTextInput(text: String) {
+        if (doubaoService == null) {
+            _uiState.update { it.copy(noteStatusMessage = "API key not configured.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isNoteLoading = true, noteStatusMessage = "Processing note...") }
+            val intent = try {
+                doubaoService.parseAssistantIntent(text)
+            } catch (error: Exception) {
+                _uiState.update { it.copy(isNoteLoading = false, noteStatusMessage = "Note processing failed. Try again.") }
+                return@launch
+            }
+            if (intent == null) {
+                _uiState.update { it.copy(isNoteLoading = false, noteStatusMessage = "I couldn't understand that.") }
+                return@launch
+            }
+            if (intent.needsClarification) {
+                _uiState.update {
+                    it.copy(
+                        isNoteLoading = false,
+                        noteStatusMessage = intent.clarificationQuestion ?: "Could you clarify?"
+                    )
+                }
+                return@launch
+            }
+
+            if (intent.intentType != AssistantIntentType.NOTE) {
+                _uiState.update {
+                    it.copy(isNoteLoading = false, noteStatusMessage = "Say “note” or “save this idea” to capture it.")
+                }
+                return@launch
+            }
+
+            handleNote(intent.note)
+        }
+    }
+
+    private suspend fun handleNote(note: NoteRequest?) {
+        if (note == null || note.content.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isNoteLoading = false,
+                    noteStatusMessage = "Please say your idea again."
+                )
+            }
+            return
+        }
+        val finalTitle = deriveShortTitle(note.title, note.content)
+        val sanitized = note.copy(title = finalTitle)
+        try {
+            noteRepository.insertFromRequest(sanitized, null)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isNoteLoading = false,
+                    noteStatusMessage = "Saved note: $finalTitle"
+                )
+            }
+        } catch (error: Exception) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isNoteLoading = false,
+                    noteStatusMessage = "Failed to save note. Try again."
+                )
+            }
+        }
+    }
+
+    private fun deriveShortTitle(title: String, content: String): String {
+        val titleWords = title.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        val contentWords = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        val preferred = if (titleWords.size >= 2) titleWords else contentWords
+        val shortTitle = preferred.take(3).joinToString(" ")
+        return if (shortTitle.isNotBlank()) shortTitle else "Idea Note"
     }
 
     private suspend fun handleEvent(request: EventRequest?) {

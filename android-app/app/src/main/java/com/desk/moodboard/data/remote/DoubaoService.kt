@@ -141,9 +141,9 @@ class DoubaoService(
 
     suspend fun parseAssistantIntent(input: String): AssistantIntent? {
         val systemPrompt = """
-            You are an AI assistant for a todo list and calendar. Classify intent and return ONLY JSON:
+            You are an AI assistant for a todo list, calendar, and idea notes. Classify intent and return ONLY JSON:
             {
-                "intentType": "TODO|EVENT|CHAT",
+                "intentType": "TODO|EVENT|NOTE|CHAT",
                 "todo": {
                     "title": "todo title",
                     "description": "details",
@@ -151,6 +151,12 @@ class DoubaoService(
                     "dueDate": "YYYY-MM-DD",
                     "dueTime": "HH:MM:SS",
                     "createCalendarEvent": true,
+                    "confidence": 0.8
+                },
+                "note": {
+                    "title": "2-3 word title",
+                    "content": "full note text",
+                    "language": "language name or ISO code",
                     "confidence": 0.8
                 },
                 "event": {
@@ -179,10 +185,15 @@ class DoubaoService(
             2. If the user is explicitly scheduling or creating calendar events, use intentType EVENT.
             3. If the user says "add to calendar" for a todo, keep intentType TODO and set todo.createCalendarEvent=true.
             4. If "add to calendar" is requested but time is missing, set needsClarification=true and ask for a time.
-            5. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
-            6. Use ISO formats. Current year is 2026.
-            7. Use null for unknown fields, not empty strings.
-            8. Do not invent a due time for TODO unless the user mentions a time.
+            5. Use intentType NOTE when the user explicitly indicates note-taking or idea capture, including phrases like:
+               - "note", "idea", "this is an idea note", "write it down", "remember this", "jot this down",
+                 "capture this", "save this", "log this", "record this", "document this", "put this in notes".
+            5a. If the user says "write down my mood", treat it as NOTE and put the mood text in note.content.
+            6. For NOTE, generate a 2-3 word title with no punctuation; if unsure, use the first 2-3 words from the content.
+            7. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
+            8. Use ISO formats. Current year is 2026.
+            9. Use null for unknown fields, not empty strings.
+            10. Do not invent a due time for TODO unless the user mentions a time.
         """.trimIndent()
 
         val currentTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString()

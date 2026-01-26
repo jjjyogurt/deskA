@@ -4,6 +4,7 @@ import androidx.room.Room
 import com.desk.moodboard.data.local.TodoDatabase
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
+import com.desk.moodboard.data.repository.NoteRepository
 import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.security.SecureKeyManager
@@ -30,7 +31,9 @@ val appModule = module {
             .build()
     }
     single { get<TodoDatabase>().todoDao() }
+    single { get<TodoDatabase>().noteDao() }
     single { TodoRepository(get()) }
+    single { NoteRepository(get()) }
     single { AudioRecorder(androidContext()) }
     single { 
         val appid = "5448745405"
@@ -41,7 +44,7 @@ val appModule = module {
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
 
-    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get()) }
-    viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
 }
 

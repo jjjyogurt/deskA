@@ -68,8 +68,9 @@ fun HomeScreen(
                             .fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing)
                     ) {
-                        MoodboardCard()
+                        MoodboardCard(assistantViewModel)
                         TodoCard(todoViewModel)
+                        NotesCard(todoViewModel)
                         HealthScoreCard()
                     }
 
