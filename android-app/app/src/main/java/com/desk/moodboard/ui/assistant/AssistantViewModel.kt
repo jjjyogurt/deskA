@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.desk.moodboard.data.model.*
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
+import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.voice.AudioRecorder
@@ -12,7 +13,6 @@ import com.desk.moodboard.voice.VolcengineASRService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
 import java.util.*
@@ -28,6 +28,7 @@ data class AssistantUiState(
 class AssistantViewModel(
     private val doubaoService: DoubaoService?,
     private val calendarRepository: CalendarRepository,
+    private val todoRepository: TodoRepository,
     private val audioRecorder: AudioRecorder,
     private val volcengineASRService: VolcengineASRService,
     private val conflictDetector: ConflictDetector,
@@ -41,7 +42,7 @@ class AssistantViewModel(
     private var recordingJob: Job? = null
 
     init {
-        addMessage("Hi! I'm your AI calendar assistant. What would you like to do?", false)
+        addMessage("Hi! I'm your Voice Agent. How can I help you today?", false)
     }
 
     fun onSendMessage(text: String) {
@@ -58,7 +59,6 @@ class AssistantViewModel(
             }
 
             if (_uiState.value.isRecording) {
-                // STOP recording
                 _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
                 val pcm = audioRecorder.stopRecordingRawPcm()
                 val finalTranscript = withTimeoutOrNull(10000) {
@@ -76,11 +76,8 @@ class AssistantViewModel(
                     addMessage("Couldn't hear anything.", false)
                 }
             } else {
-                // START recording
                 _uiState.value = _uiState.value.copy(isRecording = true, currentTranscript = "")
                 audioRecorder.startRecording()
-
-                // No streaming during recording; send after stop to match LLM ASR demo
             }
         }
     }
@@ -93,13 +90,42 @@ class AssistantViewModel(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            addMessage("Ok got it, scheduling now.", false)
-            val request = doubaoService.parseNaturalLanguage(text)
             
-            if (request != null) {
-                handleEventRequest(request)
-            } else {
+            // Unified Intent Parsing
+            val intent = doubaoService.parseAssistantIntent(text)
+            
+            if (intent == null) {
                 addMessage("I couldn't understand that. Could you rephrase?", false)
+                _uiState.value = _uiState.value.copy(isLoading = false)
+                return@launch
+            }
+
+            if (intent.needsClarification) {
+                addMessage(intent.clarificationQuestion ?: "Could you clarify that?", false)
+                _uiState.value = _uiState.value.copy(isLoading = false)
+                return@launch
+            }
+
+            when (intent.intentType) {
+                AssistantIntentType.TODO -> {
+                    val todoReq = intent.todo
+                    if (todoReq != null) {
+                        todoRepository.insertFromRequest(todoReq)
+                        addMessage("Done! I've added \"${todoReq.title}\" to your todos.", false)
+                        if (todoReq.createCalendarEvent) {
+                            handleEventRequest(intent.event ?: convertTodoToEvent(todoReq))
+                        }
+                    }
+                }
+                AssistantIntentType.EVENT -> {
+                    val eventReq = intent.event
+                    if (eventReq != null) {
+                        handleEventRequest(eventReq)
+                    }
+                }
+                AssistantIntentType.CHAT -> {
+                    addMessage(intent.chatResponse ?: "How can I help you?", false)
+                }
             }
             _uiState.value = _uiState.value.copy(isLoading = false)
         }
@@ -111,9 +137,6 @@ class AssistantViewModel(
             return
         }
         when (request.action) {
-            EventAction.CHAT -> {
-                addMessage(request.chatResponse ?: "How can I help you?", false)
-            }
             EventAction.CREATE -> {
                 val derivedTitle = if (request.title.isBlank() && request.attendees.isNotEmpty()) {
                     "Meeting with ${request.attendees.joinToString(", ")}"
@@ -125,7 +148,7 @@ class AssistantViewModel(
                 val conflict = conflictDetector.detectConflicts(request.copy(title = derivedTitle), existingEvents)
                 
                 if (conflict.hasConflict) {
-                    addMessage("Conflict: ${conflict.reasoning}", false)
+                    addMessage("Conflict found: ${conflict.reasoning}", false)
                 } else {
                     val finalRequest = request.copy(title = derivedTitle)
                     if (calendarRepository.createEvent(finalRequest)) {
@@ -133,7 +156,7 @@ class AssistantViewModel(
                         finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
                         calendarViewModel.refreshEvents()
                     } else {
-                        addMessage("Failed to schedule.", false)
+                        addMessage("Sorry, I failed to schedule that.", false)
                     }
                 }
             }
@@ -141,14 +164,28 @@ class AssistantViewModel(
                 val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 val events = calendarRepository.getEvents(now, now.plus(1, DateTimeUnit.DAY))
                 if (events.isEmpty()) {
-                    addMessage("No events for today.", false)
+                    addMessage("You have no events for today.", false)
                 } else {
                     val list = events.joinToString("\n") { "- ${it.title} at ${it.startTime.time}" }
                     addMessage("Today's events:\n$list", false)
                 }
             }
-            else -> addMessage("Not yet supported.", false)
+            else -> addMessage("I can't do that yet.", false)
         }
+    }
+
+    private fun convertTodoToEvent(todo: TodoRequest): EventRequest {
+        val date = todo.dueDate ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val time = todo.dueTime ?: LocalTime(9, 0)
+        return EventRequest(
+            action = EventAction.CREATE,
+            title = todo.title,
+            description = todo.description,
+            startTime = LocalDateTime(date, time),
+            duration = 60,
+            eventType = EventType.TASK,
+            confidence = todo.confidence
+        )
     }
 
     private fun addMessage(text: String, isUser: Boolean) {

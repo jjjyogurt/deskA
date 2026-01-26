@@ -236,7 +236,8 @@ class VolcengineASRService(
                         lastText = textResult
                     }
                     if (parsed.isLast || parsed.code != 0) {
-                        resultDeferred.complete(lastText ?: parsed.payloadMsg)
+                        // FIX: Only complete with extracted text, never raw payloadMsg
+                        resultDeferred.complete(lastText ?: "")
                     }
                 }
             }
@@ -252,7 +253,8 @@ class VolcengineASRService(
                         lastText = text
                     }
                     if (parsed.isLast) {
-                        resultDeferred.complete(lastText ?: parsed.payloadMsg)
+                        // FIX: Only complete with extracted text, never raw payloadMsg
+                        resultDeferred.complete(lastText ?: "")
                     }
                 }
             }
@@ -413,8 +415,8 @@ class VolcengineASRService(
                     finalResultDeferred?.complete(text)
                 }
             } else if (isLastPackage && jsonStr.isNotBlank()) {
-                _transcriptFlow.tryEmit(jsonStr)
-                finalResultDeferred?.complete(jsonStr)
+                // FIX: Only emit extracted text or empty string, never the raw JSON
+                finalResultDeferred?.complete("")
             }
         }
     }
