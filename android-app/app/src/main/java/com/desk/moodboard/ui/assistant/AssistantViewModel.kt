@@ -11,7 +11,8 @@ import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
-import kotlinx.coroutines.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -42,7 +43,6 @@ class AssistantViewModel(
     val uiState: StateFlow<AssistantUiState> = _uiState
 
     private var asrInitialized = false
-    private var recordingJob: Job? = null
 
     init {
         addMessage("Hi! I'm your Voice Agent. How can I help you today?", false)
@@ -71,13 +71,13 @@ class AssistantViewModel(
             if (_uiState.value.isRecording) {
                 _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
                 val pcm = audioRecorder.stopRecordingRawPcm()
-                val finalTranscript = withTimeoutOrNull(10000) {
+
+                val audioSeconds = pcm.size / 16000.0
+                val timeoutMs = ((audioSeconds * 1000.0) + 20000.0).toLong().coerceIn(20_000L, 420_000L)
+                val finalTranscript = withTimeoutOrNull(timeoutMs) {
                     volcengineASRService.transcribePcm(pcm)
                 } ?: ""
                 _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
-                
-                recordingJob?.cancel()
-                volcengineASRService.stopStreaming()
                 
                 if (finalTranscript.isNotBlank()) {
                     addMessage(finalTranscript, true)

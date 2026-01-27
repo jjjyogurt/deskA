@@ -10,10 +10,12 @@ import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlin.math.min
 
 class AudioRecorder(private val context: Context) {
@@ -22,7 +24,7 @@ class AudioRecorder(private val context: Context) {
         private const val SAMPLE_RATE = 16000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-        const val REQUIRED_SAMPLES = 480000 // 30 seconds at 16kHz for Whisper
+        const val REQUIRED_SAMPLES = 4_800_000 // 5 minutes at 16kHz
     }
 
     private var audioRecord: AudioRecord? = null
@@ -31,8 +33,8 @@ class AudioRecorder(private val context: Context) {
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording
 
-    private val _audioChunks = MutableSharedFlow<ShortArray>(extraBufferCapacity = 64)
-    val audioChunks: SharedFlow<ShortArray> = _audioChunks
+    private val _audioChunks = Channel<ShortArray>(capacity = 128, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val audioChunks: Flow<ShortArray> = _audioChunks.receiveAsFlow()
 
     private val audioData = mutableListOf<Short>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -84,7 +86,7 @@ class AudioRecorder(private val context: Context) {
                     val read = ar.read(buffer, 0, buffer.size)
                     if (read > 0) {
                         val chunk = buffer.copyOf(read)
-                        _audioChunks.tryEmit(chunk)
+                        _audioChunks.trySend(chunk)
                         
                         var sum = 0.0
                         synchronized(audioData) {

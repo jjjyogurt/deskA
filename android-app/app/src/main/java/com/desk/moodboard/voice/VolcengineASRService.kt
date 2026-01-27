@@ -97,10 +97,10 @@ class VolcengineASRService(
     }
 
     private val client = OkHttpClient.Builder()
-        .pingInterval(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(60, TimeUnit.SECONDS)
+        .pingInterval(0, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.MINUTES)
+        .writeTimeout(10, TimeUnit.MINUTES)
+        .callTimeout(10, TimeUnit.MINUTES)
         .build()
     private var webSocket: WebSocket? = null
     private val json = Json { 
@@ -119,25 +119,51 @@ class VolcengineASRService(
     private val sendScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val segmentChannel = Channel<Segment>(Channel.UNLIMITED)
     private var senderJob: Job? = null
+    private var keepAliveJob: Job? = null
+    @Volatile private var lastAudioSendAtMs: Long = 0
+    @Volatile private var sessionClosed: Boolean = false
+    @Volatile private var sessionReady: Boolean = false
 
     fun startStreaming() {
         Log.d(TAG, "ASR: startStreaming() called. AppID: $appid")
         sequence = 1
         audioBuffer.reset()
+        drainSegmentChannel()
         fullRequestSent = false
         finalResultDeferred = CompletableDeferred()
         hasLoggedBuffering = false
+        lastAudioSendAtMs = System.currentTimeMillis()
+        sessionClosed = false
+        sessionReady = false
         senderJob?.cancel()
         senderJob = sendScope.launch {
             while (!fullRequestSent) {
                 delay(10)
             }
+            while (!sessionReady) {
+                delay(10)
+            }
             for (segment in segmentChannel) {
                 val ws = webSocket ?: continue
+                if (sessionClosed) break
                 sendAudioSegment(ws, segment.bytes, segment.isLast)
-                delay(200)
+                lastAudioSendAtMs = System.currentTimeMillis()
                 if (segment.isLast) {
                     break
+                }
+            }
+        }
+        keepAliveJob?.cancel()
+        keepAliveJob = sendScope.launch {
+            while (true) {
+                delay(1000)
+                val ws = webSocket ?: break
+                if (!fullRequestSent || !sessionReady) continue
+                val idleMs = System.currentTimeMillis() - lastAudioSendAtMs
+                if (idleMs >= 4000) {
+                    val silence = ByteArray(segmentBytes)
+                    sendAudioSegment(ws, silence, isLast = false)
+                    lastAudioSendAtMs = System.currentTimeMillis()
                 }
             }
         }
@@ -156,8 +182,7 @@ class VolcengineASRService(
                 Log.d(TAG, "ASR: WebSocket Opened Successfully. Sending Full Request.")
                 sendFullClientRequest(webSocket)
                 fullRequestSent = true
-                Log.d(TAG, "ASR: Full request sent, flushing buffered audio if any.")
-                flushBufferedAudio(webSocket)
+                Log.d(TAG, "ASR: Full request sent, waiting for server ready.")
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
@@ -165,15 +190,21 @@ class VolcengineASRService(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (t is java.net.SocketException && t.message?.contains("closed", ignoreCase = true) == true) {
+                    Log.w(TAG, "ASR: Socket already closed, ignoring.")
+                    return
+                }
                 Log.e(TAG, "ASR: WebSocket Failure!", t)
                 Log.e(TAG, "ASR: Response Code: ${response?.code}, Message: ${response?.message}")
                 response?.body?.let { 
                     try { Log.e(TAG, "ASR: Error Body: ${it.string()}") } catch(e: Exception) {}
                 }
+                markSessionClosed("Failure")
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "ASR: WebSocket Closing: $code / $reason")
+                markSessionClosed("Server closing: $reason")
             }
         })
     }
@@ -204,7 +235,6 @@ class VolcengineASRService(
                         val segment = segments[i]
                         val isLast = i == segments.lastIndex
                         sendAudioSegment(webSocket, segment, isLast)
-                        delay(200)
                     }
                 }
             }
@@ -303,6 +333,7 @@ class VolcengineASRService(
 
     fun sendAudioChunk(chunk: ShortArray, isLast: Boolean = false) {
         val ws = webSocket ?: return
+        if (sessionClosed) return
         Log.d(TAG, "ASR: sendAudioChunk() called. Size: ${chunk.size}, isLast: $isLast")
         if (chunk.isNotEmpty()) {
             val byteBuffer = ByteBuffer.allocate(chunk.size * 2).apply {
@@ -317,6 +348,9 @@ class VolcengineASRService(
                 Log.d(TAG, "ASR: Buffering audio until full request is sent.")
                 hasLoggedBuffering = true
             }
+            return
+        }
+        if (!sessionReady) {
             return
         }
 
@@ -342,14 +376,70 @@ class VolcengineASRService(
 
     fun stopStreaming() {
         Log.d(TAG, "ASR: stopStreaming() called")
-        senderJob?.cancel()
-        senderJob = null
-        webSocket?.close(1000, "User stopped")
-        webSocket = null
+        markSessionClosed("User stopped")
     }
 
     suspend fun awaitFinalResult(): String? {
         return finalResultDeferred?.await()
+    }
+
+    private fun shutdownWebSocket(reason: String) {
+        senderJob?.cancel()
+        senderJob = null
+        keepAliveJob?.cancel()
+        keepAliveJob = null
+        webSocket?.let { ws ->
+            ws.close(1000, reason)
+            ws.cancel()
+        }
+        webSocket = null
+    }
+
+    private fun markSessionClosed(reason: String) {
+        if (sessionClosed) return
+        sessionClosed = true
+        sessionReady = false
+        finalResultDeferred?.let { deferred ->
+            if (!deferred.isCompleted) {
+                deferred.complete("")
+            }
+        }
+        audioBuffer.reset()
+        drainSegmentChannel()
+        shutdownWebSocket(reason)
+    }
+
+    private fun isSessionTimeoutError(jsonStr: String): Boolean {
+        return try {
+            val jsonElement = json.parseToJsonElement(jsonStr)
+            val jsonObject = jsonElement as? JsonObject ?: return false
+            val errorMessage = jsonObject["error"]?.let { (it as? JsonPrimitive)?.content }
+            val code = jsonObject["code"]
+                ?.let { (it as? JsonPrimitive)?.content }
+                ?.toIntOrNull()
+            val isTimeoutCode = code == 1020
+            val isTimeoutMessage = errorMessage?.contains("waiting next packet", ignoreCase = true) == true ||
+                errorMessage?.contains("timeout", ignoreCase = true) == true
+            val isExpiredMessage = errorMessage?.contains("session has expired", ignoreCase = true) == true ||
+                errorMessage?.contains("finished session", ignoreCase = true) == true
+            isTimeoutCode || isTimeoutMessage || isExpiredMessage
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun markSessionReady() {
+        if (sessionReady) return
+        sessionReady = true
+        webSocket?.let { ws ->
+            flushBufferedAudio(ws)
+        }
+    }
+
+    private fun drainSegmentChannel() {
+        while (segmentChannel.tryReceive().isSuccess) {
+            // discard stale segments
+        }
     }
 
     private fun handleResponse(data: ByteArray) {
@@ -407,6 +497,13 @@ class VolcengineASRService(
         if (serialization == JSON_SERIALIZATION) {
             val jsonStr = String(decompressed)
             Log.d(TAG, "ASR: Received JSON: $jsonStr")
+            if (isSessionTimeoutError(jsonStr)) {
+                markSessionClosed("Server timeout")
+                return
+            }
+            if (!sessionReady && !isErrorResponse(jsonStr)) {
+                markSessionReady()
+            }
             val text = extractText(jsonStr)
             if (!text.isNullOrBlank()) {
                 Log.d(TAG, "ASR: Transcript: $text")
@@ -418,6 +515,16 @@ class VolcengineASRService(
                 // FIX: Only emit extracted text or empty string, never the raw JSON
                 finalResultDeferred?.complete("")
             }
+        }
+    }
+
+    private fun isErrorResponse(jsonStr: String): Boolean {
+        return try {
+            val jsonElement = json.parseToJsonElement(jsonStr)
+            val jsonObject = jsonElement as? JsonObject ?: return false
+            jsonObject["error"] != null
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -471,6 +578,7 @@ class VolcengineASRService(
     }
 
     private fun sendAudioSegment(webSocket: WebSocket, audio: ByteArray, isLast: Boolean) {
+        if (sessionClosed) return
         Log.d(TAG, "ASR: Sending audio segment size=${audio.size} isLast=$isLast")
         val flags = if (isLast) NEG_SEQUENCE else NO_SEQUENCE
         val header = getHeader(CLIENT_AUDIO_ONLY_REQUEST, flags, JSON_SERIALIZATION, GZIP_COMPRESSION, 0)
