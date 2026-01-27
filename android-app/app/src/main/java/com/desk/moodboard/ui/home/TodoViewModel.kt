@@ -301,7 +301,8 @@ class TodoViewModel(
     }
 
     private suspend fun handleNote(note: NoteRequest?) {
-        if (note == null || note.content.isBlank()) {
+        val content = note?.content?.trim().orEmpty()
+        if (content.isBlank()) {
             _uiState.update {
                 it.copy(
                     isLoading = false,
@@ -311,15 +312,16 @@ class TodoViewModel(
             }
             return
         }
-        val finalTitle = deriveShortTitle(note.title, note.content)
-        val sanitized = note.copy(title = finalTitle)
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val shortTitle = deriveShortTitle(note?.title.orEmpty(), content)
+        val sanitized = (note ?: NoteRequest()).copy(title = shortTitle, content = content)
         try {
             noteRepository.insertFromRequest(sanitized, null)
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     isNoteLoading = false,
-                    noteStatusMessage = "Saved note: $finalTitle"
+                    noteStatusMessage = "Saved note: $shortTitle"
                 )
             }
         } catch (error: Exception) {

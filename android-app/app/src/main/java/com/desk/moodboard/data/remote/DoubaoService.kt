@@ -189,6 +189,9 @@ class DoubaoService(
                - "note", "idea", "this is an idea note", "write it down", "remember this", "jot this down",
                  "capture this", "save this", "log this", "record this", "document this", "put this in notes".
             5a. If the user says "write down my mood", treat it as NOTE and put the mood text in note.content.
+            5b. If intentType is NOTE, you MUST return note.title and note.content (never null).
+                - note.title: 2-3 words, no punctuation. If unsure, use the first 2-3 words of note.content.
+                - note.content: the full user text.
             6. For NOTE, generate a 2-3 word title with no punctuation; if unsure, use the first 2-3 words from the content.
             7. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
             8. Use ISO formats. Current year is 2026.

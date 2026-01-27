@@ -1,7 +1,9 @@
 package com.desk.moodboard.ui.home.components
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,12 +46,14 @@ import java.util.Locale
 @Composable
 fun NotesCard(viewModel: TodoViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH)
+    // Cleaner date + time formatter
+    val dateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.ENGLISH)
+    var expandedNoteId by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp),
+            .height(250.dp),
         shape = RoundedCornerShape(Dimens.cardCorner),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -60,16 +67,11 @@ fun NotesCard(viewModel: TodoViewModel) {
                 modifier = Modifier.padding(Dimens.cardPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Idea Notes",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = TextDark
-                    )
-                }
+                Text(
+                    text = "Idea Notes",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextDark
+                )
 
                 if (uiState.notes.isEmpty()) {
                     Box(
@@ -87,10 +89,17 @@ fun NotesCard(viewModel: TodoViewModel) {
                 } else {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(uiState.notes) { note ->
-                            NoteRow(note, dateFormatter)
+                            NoteRow(
+                                note = note,
+                                formatter = dateTimeFormatter,
+                                isExpanded = expandedNoteId == note.id,
+                                onToggleExpand = {
+                                    expandedNoteId = if (expandedNoteId == note.id) null else note.id
+                                }
+                            )
                         }
                     }
                 }
@@ -100,27 +109,50 @@ fun NotesCard(viewModel: TodoViewModel) {
 }
 
 @Composable
-private fun NoteRow(note: NoteItem, formatter: DateTimeFormatter) {
-    val dateText = Instant.ofEpochMilli(note.createdAt)
+private fun NoteRow(
+    note: NoteItem,
+    formatter: DateTimeFormatter,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit
+) {
+    val dateTimeText = Instant.ofEpochMilli(note.createdAt)
         .atZone(ZoneId.systemDefault())
-        .toLocalDate()
         .format(formatter)
 
     Column(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggleExpand() }
+            .animateContentSize()
+            .padding(vertical = 2.dp)
     ) {
         Text(
             text = note.title,
             style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
             ),
             color = TextDark,
-            maxLines = 1
+            maxLines = if (isExpanded) Int.MAX_VALUE else 1
         )
+
+        if (isExpanded) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = note.content,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                ),
+                color = TextDark.copy(alpha = 0.8f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(2.dp))
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = dateText,
+                text = dateTimeText,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                 color = TextGrey
             )
@@ -135,4 +167,3 @@ private fun NoteRow(note: NoteItem, formatter: DateTimeFormatter) {
         }
     }
 }
-

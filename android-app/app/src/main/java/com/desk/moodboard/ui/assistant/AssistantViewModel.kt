@@ -135,16 +135,19 @@ class AssistantViewModel(
                 }
                 AssistantIntentType.NOTE -> {
                     val noteReq = intent.note
-                    if (noteReq == null || noteReq.content.isBlank()) {
+                    val fallbackContent = noteReq?.content?.trim().orEmpty().ifBlank { text.trim() }
+                    if (fallbackContent.isBlank()) {
                         addMessage("Please say your idea again.", false)
                         _uiState.value = _uiState.value.copy(isLoading = false)
                         return@launch
                     }
-                    val finalTitle = deriveShortTitle(noteReq.title, noteReq.content)
-                    val sanitized = noteReq.copy(title = finalTitle)
+                    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                    val safeNote = noteReq?.copy(content = fallbackContent) ?: NoteRequest(content = fallbackContent)
+                    val shortTitle = deriveShortTitle(safeNote.title.orEmpty(), safeNote.content.orEmpty())
+                    val sanitized = safeNote.copy(title = shortTitle)
                     try {
                         noteRepository.insertFromRequest(sanitized, null)
-                        addMessage("Saved to Idea Notes: $finalTitle", false)
+                        addMessage("Saved to Idea Notes: $shortTitle", false)
                     } catch (error: Exception) {
                         addMessage("I couldn't save that note. Please try again.", false)
                     }

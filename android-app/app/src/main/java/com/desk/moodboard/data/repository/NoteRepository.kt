@@ -17,11 +17,16 @@ class NoteRepository(private val noteDao: NoteDao) {
     }
 
     suspend fun insertFromRequest(request: NoteRequest, sessionId: String?): String {
+        val content = request.content?.trim().orEmpty()
+        if (content.isBlank()) {
+            throw IllegalArgumentException("Note content is required.")
+        }
+        val title = request.title?.trim().orEmpty().ifBlank { "Idea Note" }
         val id = UUID.randomUUID().toString()
         val entity = NoteEntity(
             id = id,
-            title = request.title,
-            content = request.content,
+            title = title,
+            content = content,
             language = request.language,
             createdAt = System.currentTimeMillis(),
             sessionId = sessionId,
