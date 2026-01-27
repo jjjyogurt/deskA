@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -16,10 +17,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,6 +51,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotesCard(viewModel: TodoViewModel) {
     val uiState by viewModel.uiState.collectAsState()
@@ -91,15 +100,52 @@ fun NotesCard(viewModel: TodoViewModel) {
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(uiState.notes) { note ->
-                            NoteRow(
-                                note = note,
-                                formatter = dateTimeFormatter,
-                                isExpanded = expandedNoteId == note.id,
-                                onToggleExpand = {
-                                    expandedNoteId = if (expandedNoteId == note.id) null else note.id
-                                }
+                        items(
+                            items = uiState.notes,
+                            key = { it.id }
+                        ) { note ->
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = {
+                                    if (it == SwipeToDismissBoxValue.EndToStart) {
+                                        viewModel.onDeleteNote(note)
+                                        true
+                                    } else false
+                                },
+                                positionalThreshold = { totalDistance -> totalDistance * 0.5f }
                             )
+
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                enableDismissFromStartToEnd = false,
+                                backgroundContent = {
+                                    val color = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                                        Color.Red.copy(alpha = 0.8f)
+                                    } else Color.Transparent
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(color, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete",
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
+                            ) {
+                                NoteRow(
+                                    note = note,
+                                    formatter = dateTimeFormatter,
+                                    isExpanded = expandedNoteId == note.id,
+                                    onToggleExpand = {
+                                        expandedNoteId = if (expandedNoteId == note.id) null else note.id
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -122,9 +168,10 @@ private fun NoteRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .background(Color.White) // Ensure background is white for swipe
             .clickable { onToggleExpand() }
             .animateContentSize()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 4.dp, horizontal = 4.dp)
     ) {
         Text(
             text = note.title,

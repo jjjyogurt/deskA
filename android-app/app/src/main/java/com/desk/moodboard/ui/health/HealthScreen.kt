@@ -124,8 +124,6 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
                 color = TextDark,
             )
 
-            HealthScoreCard()
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
@@ -154,6 +152,7 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
                 ) {
+                    HealthScoreCard()
                     ReminderCard()
                 }
             }
@@ -360,10 +359,18 @@ private fun HealthScoreCard() {
                                 useCenter = false,
                                 style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
                             )
+                            // Progress arc for score 68
+                            drawArc(
+                                color = AccentOrange,
+                                startAngle = -90f,
+                                sweepAngle = 360f * 0.68f,
+                                useCenter = false,
+                                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                            )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "0",
+                                text = "68",
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 21.sp),
                                 color = TextDark
                             )
@@ -390,13 +397,7 @@ private fun HealthScoreCard() {
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(6.dp).background(TextGrey, CircleShape))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Idle",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium, fontSize = 11.sp),
-                                    color = TextDark
-                                )
+                                Box(modifier = Modifier.size(6.dp).background(AccentOrange, CircleShape))
                             }
                         }
                     }

@@ -335,6 +335,12 @@ class TodoViewModel(
         }
     }
 
+    fun onDeleteNote(note: NoteItem) {
+        viewModelScope.launch {
+            noteRepository.deleteNote(note.id)
+        }
+    }
+
     private fun deriveShortTitle(title: String, content: String): String {
         val titleWords = title.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
         val contentWords = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }

@@ -36,6 +36,10 @@ class NoteRepository(private val noteDao: NoteDao) {
         return id
     }
 
+    suspend fun deleteNote(id: String) {
+        noteDao.deleteById(id)
+    }
+
     private fun NoteEntity.toItem() = NoteItem(
         id = id,
         title = title,
