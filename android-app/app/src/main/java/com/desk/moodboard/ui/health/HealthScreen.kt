@@ -198,7 +198,7 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(text = "Posture Trend", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                        Text(text = "Health Trend", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark)
                         if (isRecording) {
                             Box(
                                 modifier = Modifier
@@ -222,20 +222,82 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                     }
                 }
                 Text(
-                    text = "Weekly improvements (upright vs slouch).",
+                    text = "Weekly improvements.",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = TextGrey,
                 )
-                BarChart(
-                    values = listOf(0.72f, 0.64f, 0.81f, 0.78f, 0.86f, 0.74f, 0.69f),
+                LineChart(
+                    values = listOf(0.65f, 0.72f, 0.68f, 0.78f, 0.82f, 0.75f, 0.88f),
                     labels = listOf("M", "T", "W", "T", "F", "S", "S"),
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Legend(color = AccentOrange, text = "Upright")
-                    Legend(color = FillGrey, text = "Other")
+                    Legend(color = AccentOrange, text = "Heal Score")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LineChart(values: List<Float>, labels: List<String>) {
+    Column {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .padding(vertical = 8.dp)
+        ) {
+            val width = size.width
+            val height = size.height
+            val spacing = width / (values.size - 1)
+            
+            // Draw path
+            val path = androidx.compose.ui.graphics.Path()
+            values.forEachIndexed { index, value ->
+                val x = index * spacing
+                val y = height - (value * height)
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            
+            drawPath(
+                path = path,
+                color = AccentOrange,
+                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+            )
+            
+            // Draw points
+            values.forEachIndexed { index, value ->
+                val x = index * spacing
+                val y = height - (value * height)
+                drawCircle(
+                    color = Color.White,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, y)
+                )
+                drawCircle(
+                    color = AccentOrange,
+                    radius = 3.dp.toPx(),
+                    center = Offset(x, y),
+                    style = Stroke(width = 2.dp.toPx())
+                )
+            }
+        }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            labels.forEach { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextGrey,
+                    fontSize = 10.sp,
+                    modifier = Modifier.width(24.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
     }

@@ -5,17 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.desk.moodboard.data.model.*
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
-import com.desk.moodboard.data.repository.NoteRepository
-import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
 import java.util.*
@@ -31,8 +28,6 @@ data class AssistantUiState(
 class AssistantViewModel(
     private val doubaoService: DoubaoService?,
     private val calendarRepository: CalendarRepository,
-    private val todoRepository: TodoRepository,
-    private val noteRepository: NoteRepository,
     private val audioRecorder: AudioRecorder,
     private val volcengineASRService: VolcengineASRService,
     private val conflictDetector: ConflictDetector,
@@ -43,16 +38,10 @@ class AssistantViewModel(
     val uiState: StateFlow<AssistantUiState> = _uiState
 
     private var asrInitialized = false
+    private var recordingJob: Job? = null
 
     init {
-        addMessage("Hi! I'm your Voice Agent. How can I help you today?", false)
-        
-        // Collect live transcript from ASR service
-        viewModelScope.launch {
-            volcengineASRService.transcriptFlow.collect { transcript ->
-                _uiState.update { it.copy(currentTranscript = transcript) }
-            }
-        }
+        addMessage("Hi! I'm your AI calendar assistant. What would you like to do?", false)
     }
 
     fun onSendMessage(text: String) {
@@ -69,15 +58,19 @@ class AssistantViewModel(
             }
 
             if (_uiState.value.isRecording) {
+                // STOP recording
                 _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
-                val pcm = audioRecorder.stopRecordingRawPcm()
-
-                val audioSeconds = pcm.size / 16000.0
-                val timeoutMs = ((audioSeconds * 1000.0) + 20000.0).toLong().coerceIn(20_000L, 420_000L)
-                val finalTranscript = withTimeoutOrNull(timeoutMs) {
-                    volcengineASRService.transcribePcm(pcm)
-                } ?: ""
+                audioRecorder.stopRecording()
+                volcengineASRService.sendAudioChunk(ShortArray(0), isLast = true)
+                
+                // Wait briefly for final result
+                delay(1000)
+                
+                val finalTranscript = _uiState.value.currentTranscript
                 _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
+                
+                recordingJob?.cancel()
+                volcengineASRService.stopStreaming()
                 
                 if (finalTranscript.isNotBlank()) {
                     addMessage(finalTranscript, true)
@@ -86,8 +79,26 @@ class AssistantViewModel(
                     addMessage("Couldn't hear anything.", false)
                 }
             } else {
+                // START recording
                 _uiState.value = _uiState.value.copy(isRecording = true, currentTranscript = "")
+                
+                volcengineASRService.startStreaming(viewModelScope)
+
                 audioRecorder.startRecording()
+
+                // Pipe audio chunks to ASR and collect transcript
+                recordingJob = viewModelScope.launch {
+                    launch {
+                        audioRecorder.audioChunks.collect { chunk ->
+                            volcengineASRService.sendAudioChunk(chunk)
+                        }
+                    }
+                    launch {
+                        volcengineASRService.transcriptFlow.collect { transcript ->
+                            _uiState.value = _uiState.value.copy(currentTranscript = transcript)
+                        }
+                    }
+                }
             }
         }
     }
@@ -100,92 +111,36 @@ class AssistantViewModel(
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
+            val request = doubaoService.parseNaturalLanguage(text)
             
-            // Unified Intent Parsing
-            val intent = doubaoService.parseAssistantIntent(text)
-            
-            if (intent == null) {
+            if (request != null) {
+                handleEventRequest(request)
+            } else {
                 addMessage("I couldn't understand that. Could you rephrase?", false)
-                _uiState.value = _uiState.value.copy(isLoading = false)
-                return@launch
-            }
-
-            if (intent.needsClarification) {
-                addMessage(intent.clarificationQuestion ?: "Could you clarify that?", false)
-                _uiState.value = _uiState.value.copy(isLoading = false)
-                return@launch
-            }
-
-            when (intent.intentType) {
-                AssistantIntentType.TODO -> {
-                    val todoReq = intent.todo
-                    if (todoReq != null) {
-                        todoRepository.insertFromRequest(todoReq)
-                        addMessage("Done! I've added \"${todoReq.title}\" to your todos.", false)
-                        if (todoReq.createCalendarEvent) {
-                            handleEventRequest(intent.event ?: convertTodoToEvent(todoReq))
-                        }
-                    }
-                }
-                AssistantIntentType.EVENT -> {
-                    val eventReq = intent.event
-                    if (eventReq != null) {
-                        handleEventRequest(eventReq)
-                    }
-                }
-                AssistantIntentType.NOTE -> {
-                    val noteReq = intent.note
-                    val fallbackContent = noteReq?.content?.trim().orEmpty().ifBlank { text.trim() }
-                    if (fallbackContent.isBlank()) {
-                        addMessage("Please say your idea again.", false)
-                        _uiState.value = _uiState.value.copy(isLoading = false)
-                        return@launch
-                    }
-                    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-                    val safeNote = noteReq?.copy(content = fallbackContent) ?: NoteRequest(content = fallbackContent)
-                    val shortTitle = deriveShortTitle(safeNote.title.orEmpty(), safeNote.content.orEmpty())
-                    val sanitized = safeNote.copy(title = shortTitle)
-                    try {
-                        noteRepository.insertFromRequest(sanitized, null)
-                        addMessage("Saved to Idea Notes: $shortTitle", false)
-                    } catch (error: Exception) {
-                        addMessage("I couldn't save that note. Please try again.", false)
-                    }
-                }
-                AssistantIntentType.CHAT -> {
-                    addMessage(intent.chatResponse ?: "How can I help you?", false)
-                }
             }
             _uiState.value = _uiState.value.copy(isLoading = false)
         }
     }
 
     private suspend fun handleEventRequest(request: EventRequest) {
-        if (request.needsClarification) {
-            addMessage(request.clarificationQuestion ?: "Could you clarify that?", false)
-            return
-        }
         when (request.action) {
+            EventAction.CHAT -> {
+                addMessage(request.chatResponse ?: "How can I help you?", false)
+            }
             EventAction.CREATE -> {
-                val derivedTitle = if (request.title.isBlank() && request.attendees.isNotEmpty()) {
-                    "Meeting with ${request.attendees.joinToString(", ")}"
-                } else {
-                    request.title
-                }
                 val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 val existingEvents = calendarRepository.getEvents(now, now.plus(7, DateTimeUnit.DAY))
-                val conflict = conflictDetector.detectConflicts(request.copy(title = derivedTitle), existingEvents)
+                val conflict = conflictDetector.detectConflicts(request, existingEvents)
                 
                 if (conflict.hasConflict) {
-                    addMessage("Conflict found: ${conflict.reasoning}", false)
+                    addMessage("Conflict: ${conflict.reasoning}", false)
                 } else {
-                    val finalRequest = request.copy(title = derivedTitle)
-                    if (calendarRepository.createEvent(finalRequest)) {
-                        addMessage("Scheduled: ${finalRequest.title}", false)
-                        finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
+                    if (calendarRepository.createEvent(request)) {
+                        addMessage("Scheduled: ${request.title}", false)
+                        request.startTime?.let { calendarViewModel.selectDate(it.date) }
                         calendarViewModel.refreshEvents()
                     } else {
-                        addMessage("Sorry, I failed to schedule that.", false)
+                        addMessage("Failed to schedule.", false)
                     }
                 }
             }
@@ -193,46 +148,20 @@ class AssistantViewModel(
                 val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 val events = calendarRepository.getEvents(now, now.plus(1, DateTimeUnit.DAY))
                 if (events.isEmpty()) {
-                    addMessage("You have no events for today.", false)
+                    addMessage("No events for today.", false)
                 } else {
                     val list = events.joinToString("\n") { "- ${it.title} at ${it.startTime.time}" }
                     addMessage("Today's events:\n$list", false)
                 }
             }
-            else -> addMessage("I can't do that yet.", false)
+            else -> addMessage("Not yet supported.", false)
         }
-    }
-
-    private fun convertTodoToEvent(todo: TodoRequest): EventRequest {
-        val date = todo.dueDate ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-        val time = todo.dueTime ?: LocalTime(9, 0)
-        return EventRequest(
-            action = EventAction.CREATE,
-            title = todo.title,
-            description = todo.description,
-            startTime = LocalDateTime(date, time),
-            duration = 60,
-            eventType = EventType.TASK,
-            confidence = todo.confidence
-        )
     }
 
     private fun addMessage(text: String, isUser: Boolean) {
         _uiState.value = _uiState.value.copy(
             messages = _uiState.value.messages + ChatMessage(UUID.randomUUID().toString(), text, isUser)
         )
-    }
-
-    private fun deriveShortTitle(title: String, content: String): String {
-        val titleWords = title.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        val contentWords = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        val preferred = if (titleWords.size >= 2) titleWords else contentWords
-        val padded = if (preferred.size >= 2) {
-            preferred
-        } else {
-            preferred + List(2 - preferred.size) { "Idea" }
-        }
-        return padded.take(3).joinToString(" ").ifBlank { "Idea Note" }
     }
 
     private fun LocalDateTime.plus(value: Int, unit: DateTimeUnit): LocalDateTime {
