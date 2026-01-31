@@ -12,7 +12,6 @@ import com.desk.moodboard.voice.VolcengineASRService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
 import java.util.*
@@ -38,7 +37,6 @@ class AssistantViewModel(
     val uiState: StateFlow<AssistantUiState> = _uiState
 
     private var asrInitialized = false
-    private var recordingJob: Job? = null
 
     init {
         addMessage("Hi! I'm your AI calendar assistant. What would you like to do?", false)
@@ -58,20 +56,14 @@ class AssistantViewModel(
             }
 
             if (_uiState.value.isRecording) {
-                // STOP recording
+                // STOP recording (non-streaming WAV transcription)
                 _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
-                audioRecorder.stopRecording()
-                volcengineASRService.sendAudioChunk(ShortArray(0), isLast = true)
-                
-                // Wait briefly for final result
-                delay(1000)
-                
-                val finalTranscript = _uiState.value.currentTranscript
+                val pcm = audioRecorder.stopRecordingRawPcm()
+                val finalTranscript = withTimeoutOrNull(10000) {
+                    volcengineASRService.transcribePcm(pcm)
+                } ?: ""
                 _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
-                
-                recordingJob?.cancel()
-                volcengineASRService.stopStreaming()
-                
+
                 if (finalTranscript.isNotBlank()) {
                     addMessage(finalTranscript, true)
                     processTextInput(finalTranscript)
@@ -79,26 +71,9 @@ class AssistantViewModel(
                     addMessage("Couldn't hear anything.", false)
                 }
             } else {
-                // START recording
+                // START recording (collect PCM, send as WAV on stop)
                 _uiState.value = _uiState.value.copy(isRecording = true, currentTranscript = "")
-                
-                volcengineASRService.startStreaming(viewModelScope)
-
                 audioRecorder.startRecording()
-
-                // Pipe audio chunks to ASR and collect transcript
-                recordingJob = viewModelScope.launch {
-                    launch {
-                        audioRecorder.audioChunks.collect { chunk ->
-                            volcengineASRService.sendAudioChunk(chunk)
-                        }
-                    }
-                    launch {
-                        volcengineASRService.transcriptFlow.collect { transcript ->
-                            _uiState.value = _uiState.value.copy(currentTranscript = transcript)
-                        }
-                    }
-                }
             }
         }
     }

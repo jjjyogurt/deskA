@@ -44,7 +44,7 @@ val appModule = module {
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
 
-    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
