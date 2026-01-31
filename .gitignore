@@ -33,3 +33,9 @@ captures/
 
 
 
+
+**/build/
+.gradle/
+local.properties
+*.apk
+*.out
