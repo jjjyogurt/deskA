@@ -1,5 +1,6 @@
 package com.desk.moodboard.data.remote
 
+import android.os.SystemClock
 import android.util.Log
 import com.desk.moodboard.data.model.AssistantIntent
 import com.desk.moodboard.data.model.EventRequest
@@ -21,7 +22,8 @@ data class DoubaoChatRequest(
     val model: String,
     val messages: List<DoubaoMessage>,
     val temperature: Float = 0.3f,
-    val caching: DoubaoCaching? = null
+    val caching: DoubaoCaching? = null,
+    val reasoning_effort: String? = null
 )
 
 @Serializable
@@ -104,7 +106,8 @@ class DoubaoService(
                 DoubaoMessage("system", systemPrompt),
                 DoubaoMessage("user", userPrompt)
             ),
-            caching = DoubaoCaching(type = "enabled", prefix = true)
+            caching = DoubaoCaching(type = "enabled", prefix = true),
+            reasoning_effort = "minimal"
         )
 
         val body = json.encodeToString(DoubaoChatRequest.serializer(), requestBody)
@@ -179,24 +182,24 @@ class DoubaoService(
                 "clarificationQuestion": null,
                 "confidence": 0.8
             }
-            
+
             Rules:
-            1. If the user is making small tasks or reminders, use intentType TODO.
-            2. If the user is explicitly scheduling or creating calendar events, use intentType EVENT.
-            3. If the user says "add to calendar" for a todo, keep intentType TODO and set todo.createCalendarEvent=true.
+            1. TODO: small tasks or reminders.
+            2. EVENT: only when explicitly scheduling/creating calendar events AND there is a date/time.
+            3. If user says "add to calendar" for a todo, keep TODO and set todo.createCalendarEvent=true.
             4. If "add to calendar" is requested but time is missing, set needsClarification=true and ask for a time.
-            5. Use intentType NOTE when the user explicitly indicates note-taking or idea capture, including phrases like:
-               - "note", "idea", "this is an idea note", "write it down", "remember this", "jot this down",
-                 "capture this", "save this", "log this", "record this", "document this", "put this in notes".
-            5a. If the user says "write down my mood", treat it as NOTE and put the mood text in note.content.
-            5b. If intentType is NOTE, you MUST return note.title and note.content (never null).
-                - note.title: 2-3 words, no punctuation. If unsure, use the first 2-3 words of note.content.
-                - note.content: the full user text.
-            6. For NOTE, generate a 2-3 word title with no punctuation; if unsure, use the first 2-3 words from the content.
-            7. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
-            8. Use ISO formats. Current year is 2026.
-            9. Use null for unknown fields, not empty strings.
-            10. Do not invent a due time for TODO unless the user mentions a time.
+            5. NOTE: explicit note/idea capture, including:
+               - "note", "idea", "idea notes", "this is an idea note", "write it down", "remember this", "jot this down",
+                 "capture this", "save this", "log this", "record this", "document this", "put this in notes",
+                 "记录一个想法", "想法", "灵感", "把这个记下来", "记下来", "写下来", "存为笔记", "保存为笔记".
+            6. If the input has no date/time and no explicit scheduling words, prefer NOTE or TODO (never EVENT).
+            7. If intent is unclear or ambiguous, set needsClarification=true and ask a specific question.
+            8. If intentType is NOTE, you MUST return note.title and note.content (never null).
+               - note.title: 2-3 words, no punctuation; if unsure, use first 2-3 words of content.
+               - note.content: full user text.
+            9. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
+            10. Use ISO formats. Current year is 2026. Use null for unknown fields, not empty strings.
+            11. Do not invent a due time for TODO unless the user mentions a time.
         """.trimIndent()
 
         val currentTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString()
@@ -208,7 +211,8 @@ class DoubaoService(
                 DoubaoMessage("system", systemPrompt),
                 DoubaoMessage("user", userPrompt)
             ),
-            caching = DoubaoCaching(type = "enabled", prefix = true)
+            caching = DoubaoCaching(type = "enabled", prefix = true),
+            reasoning_effort = "minimal"
         )
 
         val body = json.encodeToString(DoubaoChatRequest.serializer(), requestBody)
@@ -222,13 +226,19 @@ class DoubaoService(
             .build()
 
         return try {
+            Log.d("DoubaoService", "Assistant prompt: $userPrompt")
+            val startMs = SystemClock.elapsedRealtime()
             val responseText = executeRequest(request)
+            val elapsedMs = SystemClock.elapsedRealtime() - startMs
+            Log.d("DoubaoService", "Assistant API time=${elapsedMs}ms")
+            Log.d("DoubaoService", "Assistant raw response: $responseText")
             val doubaoResponse = json.decodeFromString<DoubaoChatResponse>(responseText)
             val rawContent = doubaoResponse.choices.firstOrNull()?.message?.content ?: return null
             val jsonText = extractJson(rawContent)
+            Log.d("DoubaoService", "Assistant extracted JSON: $jsonText")
             json.decodeFromString<AssistantIntent>(jsonText)
         } catch (e: Exception) {
-            Log.e("DoubaoService", "Error calling Doubao for assistant intent: ${e.message}", e)
+            Log.e("DoubaoService", "Assistant intent error: ${e.message}", e)
             null
         }
     }

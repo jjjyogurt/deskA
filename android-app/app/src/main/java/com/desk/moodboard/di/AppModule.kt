@@ -9,6 +9,7 @@ import com.desk.moodboard.data.repository.TodoRepository
 import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.security.SecureKeyManager
 import com.desk.moodboard.ui.assistant.AssistantViewModel
+import com.desk.moodboard.ui.assistant.VoiceAgentViewModel
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.voice.AudioRecorder
@@ -44,7 +45,8 @@ val appModule = module {
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
 
-    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get()) }
+    viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
