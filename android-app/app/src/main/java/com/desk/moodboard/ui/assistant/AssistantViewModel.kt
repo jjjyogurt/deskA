@@ -15,7 +15,8 @@ data class AssistantUiState(
     val isRecording: Boolean = false,
     val isLoading: Boolean = false,
     val currentTranscript: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val showSuccessCheck: Boolean = false
 )
 
 class AssistantViewModel(

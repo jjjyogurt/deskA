@@ -195,7 +195,7 @@ class DoubaoService(
             6. If the input has no date/time and no explicit scheduling words, prefer NOTE or TODO (never EVENT).
             7. If intent is unclear or ambiguous, set needsClarification=true and ask a specific question.
             8. If intentType is NOTE, you MUST return note.title and note.content (never null).
-               - note.title: 2-3 words, no punctuation; if unsure, use first 2-3 words of content.
+               - note.title: less than 5 words, no punctuation; if unsure, use first 4 words of content.
                - note.content: full user text.
             9. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
             10. Use ISO formats. Current year is 2026. Use null for unknown fields, not empty strings.

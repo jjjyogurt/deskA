@@ -19,6 +19,7 @@ import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
 import java.util.UUID
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -179,6 +180,7 @@ open class VoiceAgentViewModel(
         try {
             todoRepository.insertFromRequest(todo)
             addMessage("Added todo: ${todo.title}", false)
+            triggerSuccessFeedback()
         } catch (error: Exception) {
             addMessage("Failed to add todo. Try again.", false)
             return
@@ -228,6 +230,7 @@ open class VoiceAgentViewModel(
         try {
             noteRepository.insertFromRequest(sanitized, null)
             addMessage("Saved note: $shortTitle", false)
+            triggerSuccessFeedback()
         } catch (error: Exception) {
             addMessage("Failed to save note. Try again.", false)
         }
@@ -268,6 +271,7 @@ open class VoiceAgentViewModel(
                 val finalRequest = request.copy(title = derivedTitle)
                 if (calendarRepository.createEvent(finalRequest)) {
                     addMessage("Scheduled: ${finalRequest.title}", false)
+                    triggerSuccessFeedback()
                     finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
                     calendarViewModel.refreshEvents()
                 } else {
@@ -294,12 +298,28 @@ open class VoiceAgentViewModel(
         )
     }
 
+    private fun triggerSuccessFeedback() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(showSuccessCheck = true)
+            delay(1500)
+            _uiState.value = _uiState.value.copy(showSuccessCheck = false)
+        }
+    }
+
     private fun deriveShortTitle(title: String, content: String): String {
-        val titleWords = title.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        val contentWords = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        val preferred = if (titleWords.size >= 2) titleWords else contentWords
-        val shortTitle = preferred.take(3).joinToString(" ")
-        return if (shortTitle.isNotBlank()) shortTitle else "Idea Note"
+        val cleanedTitle = title.trim()
+        val cleanedContent = content.trim()
+        val hasWhitespace = cleanedContent.any { it.isWhitespace() }
+        val words = cleanedContent.split(Regex("\\s+")).filter { it.isNotBlank() }
+
+        val candidate = when {
+            cleanedTitle.isNotBlank() -> cleanedTitle
+            hasWhitespace -> words.take(MaxNoteTitleWords).joinToString(" ")
+            else -> cleanedContent.take(MaxNoteTitleChars)
+        }
+
+        val sanitized = candidate.trim()
+        return if (sanitized.isNotBlank()) sanitized else "Idea Note"
     }
 
     private fun stripTodoPrefix(text: String): String {
@@ -328,6 +348,8 @@ open class VoiceAgentViewModel(
         private const val LlmTimeoutMs = 8000L
         private const val DefaultConflictWindowDays = 7
         private const val DefaultEventDurationMinutes = 60
+        private const val MaxNoteTitleWords = 5
+        private const val MaxNoteTitleChars = 16
 
         private val DateTimeRegex = Regex("\\b\\d{1,2}:\\d{2}\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b")
         private val DateTimeKeywords = listOf(

@@ -1,23 +1,32 @@
 package com.desk.moodboard.ui.assistant
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.desk.moodboard.data.model.ChatMessage
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.TextDark
@@ -30,122 +39,156 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF8F9FA))
-    ) {
-        // Header
-        Row(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .background(Color(0xFFF8F9FA))
         ) {
-            Icon(
-                imageVector = Icons.Default.ChatBubbleOutline,
-                contentDescription = null,
-                tint = TextGrey,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "AI CALENDAR ASSISTANT",
-                style = MaterialTheme.typography.labelLarge,
-                color = TextGrey,
-                letterSpacing = 1.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // Chat History
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            reverseLayout = false,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 16.dp)
-        ) {
-            items(uiState.messages) { message ->
-                ChatBubble(message)
-            }
-            if (uiState.isRecording && uiState.currentTranscript.isNotEmpty()) {
-                item {
-                    ChatBubble(ChatMessage("preview", uiState.currentTranscript, true))
-                }
-            }
-            if (uiState.isLoading) {
-                item {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp).padding(8.dp),
-                        strokeWidth = 2.dp,
-                        color = AccentOrange
-                    )
-                }
-            }
-        }
-
-        // Input Area
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            shadowElevation = 8.dp
-        ) {
+            // Header
             Row(
                 modifier = Modifier
-                    .padding(16.dp)
-                    .imePadding(),
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Ask me to schedule something...", color = TextGrey) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.LightGray,
-                        unfocusedBorderColor = Color.LightGray,
-                        cursorColor = AccentOrange
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    maxLines = 3
+                Icon(
+                    imageVector = Icons.Default.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = TextGrey,
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = {
-                        viewModel.onSendMessage(inputText)
-                        inputText = ""
-                    },
-                    modifier = Modifier
-                        .size(34.dp)
-                        .background(Color(0xFF333333), RoundedCornerShape(8.dp)),
-                    enabled = inputText.isNotBlank()
-                ) {
-                    Icon(
-                        Icons.Default.Send,
-                        contentDescription = "Send",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
+                Text(
+                    text = "AI CALENDAR ASSISTANT",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextGrey,
+                    letterSpacing = 1.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Chat History
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                reverseLayout = false,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(uiState.messages) { message ->
+                    ChatBubble(message)
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = { viewModel.onToggleRecording(context) },
+                if (uiState.isRecording && uiState.currentTranscript.isNotEmpty()) {
+                    item {
+                        ChatBubble(ChatMessage("preview", uiState.currentTranscript, true))
+                    }
+                }
+                if (uiState.isLoading) {
+                    item {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(8.dp),
+                            strokeWidth = 2.dp,
+                            color = AccentOrange
+                        )
+                    }
+                }
+            }
+
+            // Input Area
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
+                Row(
                     modifier = Modifier
-                        .size(34.dp)
-                        .background(if (uiState.isRecording) AccentOrange else Color(0xFFF1F3F4), RoundedCornerShape(8.dp))
+                        .padding(16.dp)
+                        .imePadding(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Mic,
-                        contentDescription = "Record",
-                        tint = if (uiState.isRecording) Color.White else TextDark,
-                        modifier = Modifier.size(16.dp)
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Ask me to schedule something...", color = TextGrey) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.LightGray,
+                            unfocusedBorderColor = Color.LightGray,
+                            cursorColor = AccentOrange
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        maxLines = 3
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            viewModel.onSendMessage(inputText)
+                            inputText = ""
+                        },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(Color(0xFF333333), RoundedCornerShape(8.dp)),
+                        enabled = inputText.isNotBlank()
+                    ) {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = "Send",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { viewModel.onToggleRecording(context) },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (uiState.isRecording) AccentOrange else Color(0xFFF1F3F4), RoundedCornerShape(8.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.Mic,
+                            contentDescription = "Record",
+                            tint = if (uiState.isRecording) Color.White else TextDark,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
+
+        // Success Animation Overlay
+        AnimatedVisibility(
+            visible = uiState.showSuccessCheck,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 1.2f),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(1f)
+        ) {
+            SuccessCheckmark()
+        }
+    }
+}
+
+@Composable
+fun SuccessCheckmark() {
+    Box(
+        modifier = Modifier
+            .size(110.dp)
+            .shadow(elevation = 8.dp, shape = CircleShape)
+            .background(color = Color.White.copy(alpha = 0.95f), shape = CircleShape)
+            .clip(CircleShape)
+            .border(width = 0.5.dp, color = Color.LightGray.copy(alpha = 0.3f), shape = CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = "Success",
+            tint = Color(0xFF4CAF50),
+            modifier = Modifier.size(56.dp)
+        )
     }
 }
 

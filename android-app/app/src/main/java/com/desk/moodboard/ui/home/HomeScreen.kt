@@ -1,5 +1,7 @@
 package com.desk.moodboard.ui.home
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.desk.moodboard.ui.assistant.AssistantViewModel
+import com.desk.moodboard.ui.assistant.SuccessCheckmark
 import com.desk.moodboard.ui.home.components.*
 import com.desk.moodboard.ui.theme.*
 import org.koin.androidx.compose.koinViewModel
@@ -25,6 +29,8 @@ fun HomeScreen(
     todoViewModel: TodoViewModel = koinViewModel(),
     calendarViewModel: CalendarViewModel = koinInject()
 ) {
+    val uiState by assistantViewModel.uiState.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize()) {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -98,6 +104,18 @@ fun HomeScreen(
                 .imePadding() // Ensure it moves up with keyboard
         ) {
             FloatingVoiceAgent(assistantViewModel)
+        }
+
+        // Success Animation Overlay
+        AnimatedVisibility(
+            visible = uiState.showSuccessCheck,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 1.2f),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(10f)
+        ) {
+            SuccessCheckmark()
         }
     }
 }
