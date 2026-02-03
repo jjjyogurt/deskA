@@ -2,8 +2,11 @@ package com.desk.moodboard.ui.desk
 
 import android.Manifest
 import android.bluetooth.BluetoothManager
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -23,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.collectAsState
+import android.util.Log
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
@@ -56,6 +61,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var showDevicePicker by remember { mutableStateOf(false) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -67,6 +73,8 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
         if (hasScanPermission && hasConnectPermission && hasLocationPermission) {
             viewModel.startScan()
             showDevicePicker = true
+        } else {
+            showPermissionDialog = true
         }
     }
 
@@ -130,11 +138,15 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
+                    Log.d("DeskControlCard", "Select Device clicked")
+                    showDevicePicker = true
                     if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
+                        Log.d("DeskControlCard", "Permissions OK -> startScan")
                         viewModel.startScan()
-                        showDevicePicker = true
                     } else {
+                        Log.d("DeskControlCard", "Permissions missing -> request")
                         permissionLauncher.launch(requiredPermissions())
+                        showPermissionDialog = true
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
@@ -203,7 +215,45 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 viewModel.connectSelectedDevice()
                 showDevicePicker = false
             },
-            onRescan = { viewModel.startScan() },
+            onRescan = {
+                if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
+                    viewModel.startScan()
+                } else {
+                    permissionLauncher.launch(requiredPermissions())
+                    showPermissionDialog = true
+                }
+            },
+        )
+    }
+
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("Permissions required", color = TextDark) },
+            text = {
+                Text(
+                    "Please enable Location and Nearby devices permissions in Settings to scan for desks.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGrey,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPermissionDialog = false
+                    val intent = Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null)
+                    )
+                    context.startActivity(intent)
+                }) {
+                    Text("Open Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("Cancel")
+                }
+            },
         )
     }
 }
@@ -267,6 +317,7 @@ private fun requiredPermissions(): Array<String> {
         arrayOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.ACCESS_FINE_LOCATION,
         )
     } else {
         arrayOf(
@@ -303,11 +354,8 @@ private fun hasLocationPermission(
     results: Map<String, Boolean>,
     context: android.content.Context,
 ): Boolean {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        true
-    } else {
-        results[Manifest.permission.ACCESS_FINE_LOCATION] ?: hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
-    }
+    return results[Manifest.permission.ACCESS_FINE_LOCATION]
+        ?: hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
 }
 
 private fun hasPermission(context: android.content.Context, permission: String): Boolean {

@@ -1,5 +1,6 @@
 package com.desk.moodboard.data.ble
 
+import android.util.Log
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
@@ -17,6 +18,9 @@ class DeskBleRepository(
     private val client: DeskBleClient,
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) {
+    private companion object {
+        private const val Tag = "DeskBleRepository"
+    }
     private val _connectionState = MutableStateFlow<DeskConnectionState>(DeskConnectionState.Disconnected)
     val connectionState = _connectionState.asStateFlow()
 
@@ -30,6 +34,7 @@ class DeskBleRepository(
     }
 
     fun startScan(): Result<Unit> {
+        Log.d(Tag, "startScan requested")
         return client.startScan().onFailure { error ->
             _connectionState.value = DeskConnectionState.Error(mapError(error))
         }

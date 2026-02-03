@@ -9,8 +9,10 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.util.Log
 import java.util.UUID
@@ -47,16 +49,22 @@ class DeskBleClient(
             if (!adapter.isEnabled) {
                 throw DeskBleClientException("Bluetooth is disabled.")
             }
-            if (activeScanCallback != null) {
-                Log.d(Tag, "Scan already active; ignoring startScan()")
-                return@runCatching
+            val bleScanner = scanner ?: throw DeskBleClientException("BLE scanner unavailable (null).")
+            Log.d(Tag, "bleScanner=$bleScanner")
+            activeScanCallback?.let { existing ->
+                Log.d(Tag, "Stopping previous scan before starting a new one")
+                bleScanner.stopScan(existing)
+                activeScanCallback = null
             }
             val callback = createScanCallback()
             activeScanCallback = callback
             _scanResults.value = emptyList()
-            scanner?.startScan(callback) ?: throw DeskBleClientException("BLE scanner unavailable.")
+            val settings = buildScanSettings()
+            val filters = emptyList<ScanFilter>()
+            bleScanner.startScan(filters, settings, callback)
             Log.d(Tag, "BLE scan started")
             _events.tryEmit(DeskBleClientEvent.ScanStarted)
+            Unit
         }.onFailure { error ->
             Log.e(Tag, "startScan() failed: ${error.message}", error)
         }
@@ -72,6 +80,7 @@ class DeskBleClient(
             activeScanCallback = null
             Log.d(Tag, "BLE scan stopped")
             _events.tryEmit(DeskBleClientEvent.ScanStopped)
+            Unit
         }.onFailure { error ->
             Log.e(Tag, "stopScan() failed: ${error.message}", error)
         }
@@ -112,21 +121,12 @@ class DeskBleClient(
     private fun createScanCallback(): ScanCallback {
         return object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val device = result.device ?: return
-                Log.d(
-                    Tag,
-                    "ScanResult name=${device.name} addr=${device.address} rssi=${result.rssi}"
-                )
-                val item = DeskBleDevice(
-                    name = device.name,
-                    address = device.address,
-                    rssi = result.rssi,
-                )
-                val updated = _scanResults.value
-                    .filterNot { it.address == item.address }
-                    .plus(item)
-                _scanResults.value = updated
-                _events.tryEmit(DeskBleClientEvent.DeviceFound(item))
+                handleScanResult(result)
+            }
+
+            override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                Log.d(Tag, "onBatchScanResults count=${results.size}")
+                results.forEach { handleScanResult(it) }
             }
 
             override fun onScanFailed(errorCode: Int) {
@@ -134,6 +134,45 @@ class DeskBleClient(
                 _events.tryEmit(DeskBleClientEvent.Error("Scan failed: $errorCode"))
             }
         }
+    }
+
+    private fun handleScanResult(result: ScanResult) {
+        logScanResult(result)
+        val device = result.device ?: return
+        val recordName = result.scanRecord?.deviceName
+        val item = DeskBleDevice(
+            name = device.name ?: recordName,
+            address = device.address,
+            rssi = result.rssi,
+        )
+        val updated = _scanResults.value
+            .filterNot { it.address == item.address }
+            .plus(item)
+            .sortedByDescending { it.rssi }
+        _scanResults.value = updated
+        _events.tryEmit(DeskBleClientEvent.DeviceFound(item))
+    }
+
+    private fun logScanResult(result: ScanResult) {
+        val device = result.device ?: return
+        val record = result.scanRecord
+        val recordName = record?.deviceName ?: "null"
+        val serviceUuids = record?.serviceUuids
+            ?.joinToString { it.uuid.toString() }
+            ?: "none"
+        Log.d(
+            Tag,
+            "ScanResult name=${device.name} recordName=$recordName " +
+                "addr=${device.address} rssi=${result.rssi} services=$serviceUuids"
+        )
+    }
+
+    private fun buildScanSettings(): ScanSettings {
+        return ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .setReportDelay(0)
+            .build()
     }
 
     private val gattCallback = object : BluetoothGattCallback() {

@@ -4,12 +4,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -20,8 +26,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.desk.moodboard.data.ble.DeskBleDevice
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.FillGrey
@@ -45,20 +54,54 @@ fun DeskDevicePicker(
         },
         title = { Text("Select Desk", color = TextDark) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (devices.isEmpty()) {
-                    Text(
-                        text = "No devices found. Try rescanning.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextGrey,
+            val scrollState = rememberScrollState()
+            BoxWithConstraints {
+                val containerHeightPx = with(LocalDensity.current) { maxHeight.toPx() }
+                val maxScroll = scrollState.maxValue.toFloat().coerceAtLeast(1f)
+                val scrollFraction = (scrollState.value / maxScroll).coerceIn(0f, 1f)
+
+                Box {
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(scrollState),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (devices.isEmpty()) {
+                            Text(
+                                text = "No devices found. Try rescanning.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextGrey,
+                            )
+                            TextButton(onClick = onRescan) {
+                                Text("Rescan")
+                            }
+                        } else {
+                            devices.forEach { device ->
+                                DeviceRow(device = device, onClick = { onSelectDevice(device) })
+                            }
+                        }
+                    }
+
+                    val indicatorHeight = (containerHeightPx * 0.25f).coerceAtLeast(16f)
+                    val indicatorOffset = (containerHeightPx - indicatorHeight) * scrollFraction
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .fillMaxHeight()
+                            .width(4.dp)
+                            .background(FillGrey.copy(alpha = 0.25f))
                     )
-                    TextButton(onClick = onRescan) {
-                        Text("Rescan")
-                    }
-                } else {
-                    devices.forEach { device ->
-                        DeviceRow(device = device, onClick = { onSelectDevice(device) })
-                    }
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(y = with(LocalDensity.current) { indicatorOffset.toDp() })
+                            .width(4.dp)
+                            .height(with(LocalDensity.current) { indicatorHeight.toDp() })
+                            .background(TextGrey.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
+                    )
                 }
             }
         },

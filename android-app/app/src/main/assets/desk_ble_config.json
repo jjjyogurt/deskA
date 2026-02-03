@@ -1,6 +1,6 @@
 {
-  "serviceUuid": "0000fff0-0000-1000-8000-00805f9b34fb",
-  "commandCharacteristicUuid": "0000fff1-0000-1000-8000-00805f9b34fb",
+  "serviceUuid": "c1f0d8a0-8b1b-4c0b-9e1c-2c1f7f2b2c11",
+  "commandCharacteristicUuid": "c1f0d8a1-8b1b-4c0b-9e1c-2c1f7f2b2c11",
   "commands": {
     "up": "01",
     "down": "02",
