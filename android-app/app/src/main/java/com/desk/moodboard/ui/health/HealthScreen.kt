@@ -85,10 +85,14 @@ import com.desk.moodboard.ui.posture.PostureViewModel
 import com.desk.moodboard.ml.PostureState
 import com.desk.moodboard.ml.PoseOverlay
 import androidx.compose.runtime.collectAsState
+import com.desk.moodboard.ui.desk.DeskControlCard
+import com.desk.moodboard.ui.desk.DeskControlViewModel
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
     val context = LocalContext.current
+    val deskControlViewModel: DeskControlViewModel = koinViewModel()
     var showCamera by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
@@ -152,6 +156,7 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
                 ) {
+                    DeskControlCard(viewModel = deskControlViewModel)
                     HealthScoreCard()
                     ReminderCard()
                 }

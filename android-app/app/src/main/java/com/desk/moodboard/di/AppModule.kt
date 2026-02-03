@@ -2,6 +2,9 @@ package com.desk.moodboard.di
 
 import androidx.room.Room
 import com.desk.moodboard.data.local.TodoDatabase
+import com.desk.moodboard.data.ble.DeskBleClient
+import com.desk.moodboard.data.ble.DeskBleConfigLoader
+import com.desk.moodboard.data.ble.DeskBleRepository
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.data.repository.NoteRepository
@@ -10,6 +13,7 @@ import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.security.SecureKeyManager
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.assistant.VoiceAgentViewModel
+import com.desk.moodboard.ui.desk.DeskControlViewModel
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.voice.AudioRecorder
@@ -42,11 +46,15 @@ val appModule = module {
         val resourceId = "volc.bigasr.sauc.duration"
         VolcengineASRService(appid, token, resourceId)
     }
+    single { DeskBleConfigLoader(androidContext(), "desk_ble_config.json") }
+    single { DeskBleClient(androidContext()) }
+    single { DeskBleRepository(get(), get()) }
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
 
     viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { DeskControlViewModel(get()) }
 }
 

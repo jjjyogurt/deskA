@@ -1,0 +1,315 @@
+package com.desk.moodboard.ui.desk
+
+import android.Manifest
+import android.bluetooth.BluetoothManager
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.collectAsState
+import com.desk.moodboard.domain.desk.DeskCommand
+import com.desk.moodboard.domain.desk.DeskConnectionState
+import com.desk.moodboard.domain.desk.DeskError
+import com.desk.moodboard.domain.desk.DeskMemorySlot
+import com.desk.moodboard.ui.theme.AccentOrange
+import com.desk.moodboard.ui.theme.Dimens
+import com.desk.moodboard.ui.theme.FillGrey
+import com.desk.moodboard.ui.theme.TextDark
+import com.desk.moodboard.ui.theme.TextGrey
+
+@Composable
+fun DeskControlCard(viewModel: DeskControlViewModel) {
+    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
+    var showDevicePicker by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val hasScanPermission = hasScanPermission(results, context)
+        val hasConnectPermission = hasConnectPermission(results, context)
+        val hasLocationPermission = hasLocationPermission(results, context)
+        viewModel.updatePermissions(hasScanPermission, hasConnectPermission, hasLocationPermission)
+        if (hasScanPermission && hasConnectPermission && hasLocationPermission) {
+            viewModel.startScan()
+            showDevicePicker = true
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.updatePermissions(
+            hasScanPermission = hasScanPermission(emptyMap(), context),
+            hasConnectPermission = hasConnectPermission(emptyMap(), context),
+            hasLocationPermission = hasLocationPermission(emptyMap(), context),
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
+        val enabled = bluetoothManager?.adapter?.isEnabled == true
+        viewModel.updateBluetoothEnabled(enabled)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Dimens.cardCorner),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
+                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .padding(Dimens.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Desk Control",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextDark,
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StatusChip(text = connectionLabel(uiState.connectionState))
+                    if (uiState.connectionState is DeskConnectionState.Connected) {
+                        Text(
+                            text = "Disconnect",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                            color = TextGrey,
+                            modifier = Modifier
+                                .background(FillGrey.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .clickable { viewModel.disconnect() },
+                        )
+                    }
+                }
+            }
+
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
+                        viewModel.startScan()
+                        showDevicePicker = true
+                    } else {
+                        permissionLauncher.launch(requiredPermissions())
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text(
+                    text = if (uiState.isScanning) "Scanning..." else "Select Device",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
+                )
+            }
+
+            uiState.selectedDevice?.let { device ->
+                Text(
+                    text = "Selected: ${device.name ?: device.address}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextGrey,
+                )
+            }
+
+            val currentError = uiState.error
+            if (currentError != null) {
+                Text(
+                    text = errorMessage(currentError),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextGrey,
+                )
+            }
+
+            val isConnected = uiState.connectionState is DeskConnectionState.Connected
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CommandButton("Up", enabled = isConnected) {
+                    viewModel.sendCommand(DeskCommand.Up)
+                }
+                CommandButton("Down", enabled = isConnected) {
+                    viewModel.sendCommand(DeskCommand.Down)
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CommandButton("Memory 1", enabled = isConnected) {
+                    viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.One))
+                }
+                CommandButton("Memory 2", enabled = isConnected) {
+                    viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Two))
+                }
+                CommandButton("Memory 3", enabled = isConnected) {
+                    viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Three))
+                }
+            }
+        }
+    }
+
+    if (showDevicePicker) {
+        DeskDevicePicker(
+            devices = uiState.devices,
+            onDismiss = { showDevicePicker = false },
+            onSelectDevice = { device ->
+                viewModel.selectDevice(device)
+                viewModel.connectSelectedDevice()
+                showDevicePicker = false
+            },
+            onRescan = { viewModel.startScan() },
+        )
+    }
+}
+
+@Composable
+private fun StatusChip(text: String) {
+    Box(
+        modifier = Modifier
+            .background(FillGrey.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+            color = TextGrey,
+        )
+    }
+}
+
+@Composable
+private fun RowScope.CommandButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(
+        modifier = Modifier.weight(1f),
+        onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+private fun connectionLabel(state: DeskConnectionState): String {
+    return when (state) {
+        DeskConnectionState.Disconnected -> "Disconnected"
+        DeskConnectionState.Scanning -> "Scanning"
+        DeskConnectionState.Connecting -> "Connecting"
+        is DeskConnectionState.Connected -> "Connected"
+        is DeskConnectionState.Error -> "Error"
+    }
+}
+
+private fun errorMessage(error: DeskError): String {
+    return when (error) {
+        DeskError.PermissionDenied -> "Permission required for BLE scan."
+        DeskError.BluetoothDisabled -> "Bluetooth is disabled."
+        DeskError.DeviceNotFound -> "No device selected."
+        DeskError.ConfigInvalid -> "Invalid BLE config."
+        is DeskError.GattError -> "BLE error: ${error.message}"
+        is DeskError.Unknown -> error.message
+    }
+}
+
+private fun requiredPermissions(): Array<String> {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        arrayOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+        )
+    } else {
+        arrayOf(
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        )
+    }
+}
+
+private fun hasScanPermission(
+    results: Map<String, Boolean>,
+    context: android.content.Context,
+): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        results[Manifest.permission.BLUETOOTH_SCAN] ?: hasPermission(context, Manifest.permission.BLUETOOTH_SCAN)
+    } else {
+        hasPermission(context, Manifest.permission.BLUETOOTH)
+    }
+}
+
+private fun hasConnectPermission(
+    results: Map<String, Boolean>,
+    context: android.content.Context,
+): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        results[Manifest.permission.BLUETOOTH_CONNECT] ?: hasPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
+    } else {
+        hasPermission(context, Manifest.permission.BLUETOOTH_ADMIN)
+    }
+}
+
+private fun hasLocationPermission(
+    results: Map<String, Boolean>,
+    context: android.content.Context,
+): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        true
+    } else {
+        results[Manifest.permission.ACCESS_FINE_LOCATION] ?: hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+}
+
+private fun hasPermission(context: android.content.Context, permission: String): Boolean {
+    return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+}

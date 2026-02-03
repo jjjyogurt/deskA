@@ -1,0 +1,11 @@
+{
+  "serviceUuid": "0000fff0-0000-1000-8000-00805f9b34fb",
+  "commandCharacteristicUuid": "0000fff1-0000-1000-8000-00805f9b34fb",
+  "commands": {
+    "up": "01",
+    "down": "02",
+    "memory1": "11",
+    "memory2": "12",
+    "memory3": "13"
+  }
+}
