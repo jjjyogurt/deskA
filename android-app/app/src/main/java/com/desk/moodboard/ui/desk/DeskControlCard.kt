@@ -105,6 +105,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 .padding(Dimens.cardPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            val isConnected = uiState.connectionState is DeskConnectionState.Connected
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -120,43 +121,41 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    StatusChip(text = connectionLabel(uiState.connectionState))
-                    if (uiState.connectionState is DeskConnectionState.Connected) {
-                        Text(
-                            text = "Disconnect",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-                            color = TextGrey,
-                            modifier = Modifier
-                                .background(FillGrey.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                .clickable { viewModel.disconnect() },
-                        )
-                    }
+                    StatusChip(
+                        text = connectionLabel(uiState.connectionState),
+                        onClick = if (isConnected) {
+                            { viewModel.disconnect() }
+                        } else {
+                            null
+                        },
+                    )
                 }
             }
 
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    Log.d("DeskControlCard", "Select Device clicked")
-                    showDevicePicker = true
-                    if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
-                        Log.d("DeskControlCard", "Permissions OK -> startScan")
-                        viewModel.startScan()
-                    } else {
-                        Log.d("DeskControlCard", "Permissions missing -> request")
-                        permissionLauncher.launch(requiredPermissions())
-                        showPermissionDialog = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(8.dp),
-            ) {
-                Text(
-                    text = if (uiState.isScanning) "Scanning..." else "Select Device",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
-                )
+            if (!isConnected) {
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        Log.d("DeskControlCard", "Select Device clicked")
+                        showDevicePicker = true
+                        if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
+                            Log.d("DeskControlCard", "Permissions OK -> startScan")
+                            viewModel.startScan()
+                        } else {
+                            Log.d("DeskControlCard", "Permissions missing -> request")
+                            permissionLauncher.launch(requiredPermissions())
+                            showPermissionDialog = true
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        text = if (uiState.isScanning) "Scanning..." else "Select Device",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
+                    )
+                }
             }
 
             uiState.selectedDevice?.let { device ->
@@ -176,7 +175,6 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 )
             }
 
-            val isConnected = uiState.connectionState is DeskConnectionState.Connected
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -259,10 +257,20 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
 }
 
 @Composable
-private fun StatusChip(text: String) {
+private fun StatusChip(
+    text: String,
+    onClick: (() -> Unit)? = null,
+) {
+    val clickableModifier = if (onClick != null) {
+        Modifier.clickable { onClick() }
+    } else {
+        Modifier
+    }
+
     Box(
         modifier = Modifier
             .background(FillGrey.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .then(clickableModifier)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Text(

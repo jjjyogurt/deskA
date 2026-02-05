@@ -9,6 +9,7 @@ import com.desk.moodboard.data.ble.DeskBleRepository
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
@@ -113,8 +114,10 @@ class DeskControlViewModel(
     }
 
     fun sendCommand(command: DeskCommand) {
-        repository.sendCommand(command).onFailure { error ->
-            _uiState.value = _uiState.value.copy(error = DeskError.Unknown(error.message ?: "Command failed"))
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.sendCommand(command).onFailure { error ->
+                _uiState.value = _uiState.value.copy(error = DeskError.Unknown(error.message ?: "Command failed"))
+            }
         }
     }
 
