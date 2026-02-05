@@ -26,6 +26,7 @@ class DeskBleClient(
 ) {
     private companion object {
         private const val Tag = "DeskBleClient"
+        private const val ScanReportDelayMs = 150L
     }
     private val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
@@ -34,6 +35,7 @@ class DeskBleClient(
 
     private var bluetoothGatt: BluetoothGatt? = null
     private var activeScanCallback: ScanCallback? = null
+    private var scanResultsByAddress: Map<String, DeskBleDevice> = emptyMap()
 
     private val _scanResults = MutableStateFlow<List<DeskBleDevice>>(emptyList())
     val scanResults = _scanResults.asStateFlow()
@@ -58,6 +60,7 @@ class DeskBleClient(
             }
             val callback = createScanCallback()
             activeScanCallback = callback
+            scanResultsByAddress = emptyMap()
             _scanResults.value = emptyList()
             val settings = buildScanSettings()
             val filters = emptyList<ScanFilter>()
@@ -121,12 +124,14 @@ class DeskBleClient(
     private fun createScanCallback(): ScanCallback {
         return object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                handleScanResult(result)
+                handleScanResults(listOf(result))
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                Log.d(Tag, "onBatchScanResults count=${results.size}")
-                results.forEach { handleScanResult(it) }
+                if (isDebugLoggingEnabled()) {
+                    Log.d(Tag, "onBatchScanResults count=${results.size}")
+                }
+                handleScanResults(results)
             }
 
             override fun onScanFailed(errorCode: Int) {
@@ -136,21 +141,35 @@ class DeskBleClient(
         }
     }
 
-    private fun handleScanResult(result: ScanResult) {
-        logScanResult(result)
-        val device = result.device ?: return
+    private fun handleScanResults(results: List<ScanResult>) {
+        val items = results.mapNotNull { toDeskBleDevice(it) }
+        if (items.isEmpty()) {
+            return
+        }
+        scanResultsByAddress = items.fold(scanResultsByAddress) { acc, item ->
+            acc + (item.address to item)
+        }
+        _scanResults.value = scanResultsByAddress.values.sortedByDescending { it.rssi }
+        items.forEach { item ->
+            _events.tryEmit(DeskBleClientEvent.DeviceFound(item))
+        }
+    }
+
+    private fun toDeskBleDevice(result: ScanResult): DeskBleDevice? {
+        if (isDebugLoggingEnabled()) {
+            logScanResult(result)
+        }
+        val device = result.device ?: return null
         val recordName = result.scanRecord?.deviceName
-        val item = DeskBleDevice(
+        return DeskBleDevice(
             name = device.name ?: recordName,
             address = device.address,
             rssi = result.rssi,
         )
-        val updated = _scanResults.value
-            .filterNot { it.address == item.address }
-            .plus(item)
-            .sortedByDescending { it.rssi }
-        _scanResults.value = updated
-        _events.tryEmit(DeskBleClientEvent.DeviceFound(item))
+    }
+
+    private fun isDebugLoggingEnabled(): Boolean {
+        return Log.isLoggable(Tag, Log.DEBUG)
     }
 
     private fun logScanResult(result: ScanResult) {
@@ -171,7 +190,7 @@ class DeskBleClient(
         return ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-            .setReportDelay(0)
+            .setReportDelay(ScanReportDelayMs)
             .build()
     }
 
@@ -184,6 +203,7 @@ class DeskBleClient(
                 return
             }
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                stopScan()
                 _events.tryEmit(DeskBleClientEvent.Connected(gatt.device))
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {

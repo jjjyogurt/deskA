@@ -55,6 +55,7 @@ import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.FillGrey
 import com.desk.moodboard.ui.theme.TextDark
 import com.desk.moodboard.ui.theme.TextGrey
+import kotlinx.coroutines.delay
 
 @Composable
 fun DeskControlCard(viewModel: DeskControlViewModel) {
@@ -62,6 +63,8 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     var showDevicePicker by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
+    var hasEverSelected by remember { mutableStateOf(false) }
+    var showSelectionHighlight by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -90,6 +93,16 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
         val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
         val enabled = bluetoothManager?.adapter?.isEnabled == true
         viewModel.updateBluetoothEnabled(enabled)
+    }
+
+    LaunchedEffect(uiState.selectedDevice?.address) {
+        val selectedAddress = uiState.selectedDevice?.address
+        if (!hasEverSelected && selectedAddress != null) {
+            hasEverSelected = true
+            showSelectionHighlight = true
+            delay(1200)
+            showSelectionHighlight = false
+        }
     }
 
     Card(
@@ -159,11 +172,20 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
             }
 
             uiState.selectedDevice?.let { device ->
-                Text(
-                    text = "Selected: ${device.name ?: device.address}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
-                )
+                val highlightModifier = if (showSelectionHighlight) {
+                    Modifier
+                        .background(AccentOrange.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                } else {
+                    Modifier
+                }
+                Box(modifier = highlightModifier) {
+                    Text(
+                        text = "Selected: ${device.name ?: device.address}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextGrey,
+                    )
+                }
             }
 
             val currentError = uiState.error
@@ -207,6 +229,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     if (showDevicePicker) {
         DeskDevicePicker(
             devices = uiState.devices,
+            selectedDeviceAddress = uiState.selectedDevice?.address,
             onDismiss = { showDevicePicker = false },
             onSelectDevice = { device ->
                 viewModel.selectDevice(device)

@@ -1,7 +1,10 @@
 package com.desk.moodboard.ui.desk
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,7 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,15 +28,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import com.desk.moodboard.data.ble.DeskBleDevice
+import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.FillGrey
 import com.desk.moodboard.ui.theme.TextDark
@@ -40,6 +46,7 @@ import com.desk.moodboard.ui.theme.TextGrey
 @Composable
 fun DeskDevicePicker(
     devices: List<DeskBleDevice>,
+    selectedDeviceAddress: String?,
     onDismiss: () -> Unit,
     onSelectDevice: (DeskBleDevice) -> Unit,
     onRescan: () -> Unit,
@@ -78,7 +85,11 @@ fun DeskDevicePicker(
                             }
                         } else {
                             devices.forEach { device ->
-                                DeviceRow(device = device, onClick = { onSelectDevice(device) })
+                                DeviceRow(
+                                    device = device,
+                                    isSelected = device.address == selectedDeviceAddress,
+                                    onClick = { onSelectDevice(device) }
+                                )
                             }
                         }
                     }
@@ -111,15 +122,31 @@ fun DeskDevicePicker(
 @Composable
 private fun DeviceRow(
     device: DeskBleDevice,
+    isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val baseColor = if (isSelected) AccentOrange.copy(alpha = 0.05f) else Color.White
+    val containerColor = if (isPressed) FillGrey.copy(alpha = 0.18f) else baseColor
+    val borderColor = when {
+        isPressed -> FillGrey.copy(alpha = 0.45f)
+        isSelected -> AccentOrange.copy(alpha = 0.2f)
+        else -> Color.Transparent
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+            .border(1.dp, borderColor, RoundedCornerShape(Dimens.cardCorner))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(Dimens.cardCorner),
+        shape = RoundedCornerShape(Dimens.cardCorner),
     ) {
         Column(
             modifier = Modifier
@@ -130,8 +157,10 @@ private fun DeviceRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = device.name ?: "Unknown Device",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    color = if (isSelected) AccentOrange else TextDark,
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
@@ -143,15 +172,7 @@ private fun DeviceRow(
             Text(
                 text = device.address,
                 style = MaterialTheme.typography.labelSmall,
-                color = TextGrey,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .padding(top = 6.dp)
-                    .background(FillGrey.copy(alpha = 0.5f)),
+                color = TextGrey.copy(alpha = 0.7f),
             )
         }
     }
