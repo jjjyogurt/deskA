@@ -63,6 +63,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     var showDevicePicker by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
+    var showDisconnectDialog by remember { mutableStateOf(false) }
     var hasEverSelected by remember { mutableStateOf(false) }
     var showSelectionHighlight by remember { mutableStateOf(false) }
 
@@ -137,7 +138,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     StatusChip(
                         text = connectionLabel(uiState.connectionState),
                         onClick = if (isConnected) {
-                            { viewModel.disconnect() }
+                            { showDisconnectDialog = true }
                         } else {
                             null
                         },
@@ -226,9 +227,38 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
         }
     }
 
+    if (showDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectDialog = false },
+            title = { Text("Disconnect Desk", color = TextDark) },
+            text = {
+                Text(
+                    "Are you sure you want to disconnect from the desk?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGrey,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.disconnect()
+                    showDisconnectDialog = false
+                    showDevicePicker = true
+                }) {
+                    Text("Disconnect", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
     if (showDevicePicker) {
         DeskDevicePicker(
             devices = uiState.devices,
+            isScanning = uiState.isScanning,
             selectedDeviceAddress = uiState.selectedDevice?.address,
             onDismiss = { showDevicePicker = false },
             onSelectDevice = { device ->
