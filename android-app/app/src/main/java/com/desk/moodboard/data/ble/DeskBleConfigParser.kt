@@ -22,6 +22,7 @@ object DeskBleConfigParser {
         val commands = DeskBleCommands(
             up = parseHex(raw.commands.up, "commands.up"),
             down = parseHex(raw.commands.down, "commands.down"),
+            stop = parseHex(raw.commands.stop, "commands.stop"),
             memory1 = parseHex(raw.commands.memory1, "commands.memory1"),
             memory2 = parseHex(raw.commands.memory2, "commands.memory2"),
             memory3 = parseHex(raw.commands.memory3, "commands.memory3"),

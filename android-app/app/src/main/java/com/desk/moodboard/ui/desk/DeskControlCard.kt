@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +29,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -198,16 +199,28 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 )
             }
 
+            Text(
+                text = "Hold to move",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextGrey,
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CommandButton("Up", enabled = isConnected) {
-                    viewModel.sendCommand(DeskCommand.Up)
-                }
-                CommandButton("Down", enabled = isConnected) {
-                    viewModel.sendCommand(DeskCommand.Down)
-                }
+                HoldCommandButton(
+                    label = "Up",
+                    enabled = isConnected,
+                    onPress = { viewModel.startContinuousCommand(DeskCommand.Up) },
+                    onRelease = { viewModel.stopContinuousCommand() },
+                )
+                HoldCommandButton(
+                    label = "Down",
+                    enabled = isConnected,
+                    onPress = { viewModel.startContinuousCommand(DeskCommand.Down) },
+                    onRelease = { viewModel.stopContinuousCommand() },
+                )
             }
 
             Row(
@@ -343,6 +356,47 @@ private fun RowScope.CommandButton(
     Button(
         modifier = Modifier.weight(1f),
         onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun RowScope.HoldCommandButton(
+    label: String,
+    enabled: Boolean,
+    onPress: () -> Unit,
+    onRelease: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    var wasPressed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isPressed, enabled) {
+        if (!enabled) {
+            return@LaunchedEffect
+        }
+        if (isPressed == wasPressed) {
+            return@LaunchedEffect
+        }
+        wasPressed = isPressed
+        if (isPressed) {
+            Log.d("DeskControlCard", "HoldCommandButton pressed: $label")
+            onPress()
+        } else {
+            Log.d("DeskControlCard", "HoldCommandButton released: $label")
+            onRelease()
+        }
+    }
+
+    Button(
+        modifier = Modifier.weight(1f),
+        interactionSource = interactionSource,
+        onClick = {},
         enabled = enabled,
         colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),

@@ -14,6 +14,7 @@ data class DeskBleConfigRaw(
 data class DeskBleCommandsRaw(
     val up: String,
     val down: String,
+    val stop: String,
     val memory1: String,
     val memory2: String,
     val memory3: String,
@@ -28,6 +29,7 @@ data class DeskBleConfig(
 data class DeskBleCommands(
     val up: ByteArray,
     val down: ByteArray,
+    val stop: ByteArray,
     val memory1: ByteArray,
     val memory2: ByteArray,
     val memory3: ByteArray,

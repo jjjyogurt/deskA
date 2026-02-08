@@ -28,6 +28,13 @@ class DeskBleClient(
         private const val Tag = "DeskBleClient"
         private const val ScanReportDelayMs = 150L
     }
+    private data class WriteRequest(
+        val serviceUuid: UUID,
+        val characteristicUuid: UUID,
+        val payload: ByteArray,
+        val writeType: Int,
+    )
+
     private val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
     private val scanner: BluetoothLeScanner?
@@ -36,6 +43,9 @@ class DeskBleClient(
     private var bluetoothGatt: BluetoothGatt? = null
     private var activeScanCallback: ScanCallback? = null
     private var scanResultsByAddress: Map<String, DeskBleDevice> = emptyMap()
+    private val writeQueue = ArrayDeque<WriteRequest>()
+    private val writeLock = Any()
+    private var writeInFlight = false
 
     private val _scanResults = MutableStateFlow<List<DeskBleDevice>>(emptyList())
     val scanResults = _scanResults.asStateFlow()
@@ -100,6 +110,7 @@ class DeskBleClient(
 
     fun disconnect(): Result<Unit> {
         return runCatching {
+            clearWriteQueue()
             bluetoothGatt?.disconnect()
             bluetoothGatt?.close()
             bluetoothGatt = null
@@ -110,14 +121,57 @@ class DeskBleClient(
         serviceUuid: UUID,
         characteristicUuid: UUID,
         payload: ByteArray,
+        writeType: Int = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
     ): Result<Unit> {
         return runCatching {
             val gatt = bluetoothGatt ?: throw DeskBleClientException("Not connected to a device.")
-            val service = gatt.getService(serviceUuid)
+            enqueueWrite(
+                gatt = gatt,
+                request = WriteRequest(serviceUuid, characteristicUuid, payload, writeType),
+            )
+        }
+    }
+
+    private fun enqueueWrite(
+        gatt: BluetoothGatt,
+        request: WriteRequest,
+    ) {
+        synchronized(writeLock) {
+            writeQueue.addLast(request)
+            if (writeInFlight) {
+                Log.d(Tag, "Write queued size=${writeQueue.size}")
+                return
+            }
+            writeNextLocked(gatt)
+        }
+    }
+
+    private fun writeNextLocked(gatt: BluetoothGatt) {
+        if (writeQueue.isEmpty()) {
+            writeInFlight = false
+            return
+        }
+        val next = writeQueue.removeFirst()
+        try {
+            writeInFlight = true
+            val service = gatt.getService(next.serviceUuid)
                 ?: throw DeskBleClientException("Service not found.")
-            val characteristic = service.getCharacteristic(characteristicUuid)
+            val characteristic = service.getCharacteristic(next.characteristicUuid)
                 ?: throw DeskBleClientException("Characteristic not found.")
-            writeCharacteristic(gatt, characteristic, payload)
+            writeCharacteristic(gatt, characteristic, next.payload, next.writeType)
+            Log.d(Tag, "Write started queueRemaining=${writeQueue.size}")
+        } catch (error: Exception) {
+            writeInFlight = false
+            writeQueue.clear()
+            _events.tryEmit(DeskBleClientEvent.Error(error.message ?: "Write failed."))
+            throw error
+        }
+    }
+
+    private fun clearWriteQueue() {
+        synchronized(writeLock) {
+            writeQueue.clear()
+            writeInFlight = false
         }
     }
 
@@ -207,6 +261,7 @@ class DeskBleClient(
                 _events.tryEmit(DeskBleClientEvent.Connected(gatt.device))
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                clearWriteQueue()
                 _events.tryEmit(DeskBleClientEvent.Disconnected)
                 gatt.close()
             }
@@ -232,6 +287,23 @@ class DeskBleClient(
             } else {
                 _events.tryEmit(DeskBleClientEvent.Error("Write failed: $status"))
             }
+            synchronized(writeLock) {
+                writeInFlight = false
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    writeQueue.clear()
+                    return
+                }
+                val currentGatt = bluetoothGatt ?: gatt
+                if (currentGatt != null) {
+                    try {
+                        writeNextLocked(currentGatt)
+                    } catch (error: Exception) {
+                        Log.e(Tag, "Write continuation failed: ${error.message}", error)
+                    }
+                } else {
+                    writeQueue.clear()
+                }
+            }
         }
     }
 
@@ -240,7 +312,9 @@ class DeskBleClient(
         gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic,
         payload: ByteArray,
+        writeType: Int,
     ) {
+        characteristic.writeType = writeType
         characteristic.value = payload
         val initiated = gatt.writeCharacteristic(characteristic)
         if (!initiated) {

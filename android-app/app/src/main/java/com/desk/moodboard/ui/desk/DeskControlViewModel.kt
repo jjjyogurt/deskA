@@ -10,9 +10,12 @@ import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class DeskControlViewModel(
@@ -20,9 +23,12 @@ class DeskControlViewModel(
 ) : ViewModel() {
     private companion object {
         private const val Tag = "DeskControlVM"
+        private const val HoldCommandIntervalMs = 150L
+        private const val StopDebounceMs = 120L
     }
     private val _uiState = MutableStateFlow(DeskControlUiState())
     val uiState: StateFlow<DeskControlUiState> = _uiState
+    private var activeCommandJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -32,6 +38,9 @@ class DeskControlViewModel(
                     isScanning = state is DeskConnectionState.Scanning,
                     error = (state as? DeskConnectionState.Error)?.error,
                 )
+                if (state is DeskConnectionState.Disconnected || state is DeskConnectionState.Error) {
+                    cancelContinuousCommand()
+                }
             }
         }
         viewModelScope.launch {
@@ -121,12 +130,53 @@ class DeskControlViewModel(
         }
     }
 
+    fun startContinuousCommand(command: DeskCommand) {
+        Log.d(Tag, "startContinuousCommand command=$command")
+        cancelContinuousCommand()
+        activeCommandJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                repository.sendCommand(command).onFailure { error ->
+                    _uiState.value = _uiState.value.copy(error = DeskError.Unknown(error.message ?: "Command failed"))
+                }
+                delay(HoldCommandIntervalMs)
+            }
+        }
+    }
+
+    fun stopContinuousCommand() {
+        Log.d(Tag, "stopContinuousCommand")
+        cancelContinuousCommand()
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(StopDebounceMs)
+            if (!isConnected()) {
+                return@launch
+            }
+            repository.sendCommand(DeskCommand.Stop).onFailure { error ->
+                _uiState.value = _uiState.value.copy(error = DeskError.Unknown(error.message ?: "Command failed"))
+            }
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    private fun cancelContinuousCommand() {
+        activeCommandJob?.cancel()
+        activeCommandJob = null
     }
 
     private fun canScan(): Boolean {
         val state = _uiState.value
         return state.hasScanPermission && state.hasConnectPermission && state.hasLocationPermission
+    }
+
+    private fun isConnected(): Boolean {
+        return _uiState.value.connectionState is DeskConnectionState.Connected
+    }
+
+    override fun onCleared() {
+        cancelContinuousCommand()
+        super.onCleared()
     }
 }

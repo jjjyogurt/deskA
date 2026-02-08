@@ -1,5 +1,6 @@
 package com.desk.moodboard.data.ble
 
+import android.bluetooth.BluetoothGattCharacteristic
 import android.util.Log
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
@@ -71,12 +72,20 @@ class DeskBleRepository(
         val payload = when (command) {
             DeskCommand.Up -> config.commands.up
             DeskCommand.Down -> config.commands.down
+            DeskCommand.Stop -> config.commands.stop
             is DeskCommand.Memory -> mapMemoryCommand(config, command.slot)
+        }
+        val writeType = when (command) {
+            DeskCommand.Up,
+            DeskCommand.Down,
+            DeskCommand.Stop -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            is DeskCommand.Memory -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         }
         return client.writeCommand(
             serviceUuid = config.serviceUuid,
             characteristicUuid = config.commandCharacteristicUuid,
             payload = payload,
+            writeType = writeType,
         ).onFailure { error ->
             _connectionState.value = DeskConnectionState.Error(mapError(error))
         }

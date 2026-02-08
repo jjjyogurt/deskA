@@ -14,6 +14,7 @@ class DeskBleConfigParserTest {
               "commands": {
                 "up": "01",
                 "down": "02",
+                "stop": "00",
                 "memory1": "11",
                 "memory2": "12",
                 "memory3": "13"
@@ -37,6 +38,7 @@ class DeskBleConfigParserTest {
               "commands": {
                 "up": "0G",
                 "down": "02",
+                "stop": "00",
                 "memory1": "11",
                 "memory2": "12",
                 "memory3": "13"
