@@ -1,8 +1,11 @@
 package com.desk.moodboard.data.repository
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.CalendarContract
+import androidx.core.content.ContextCompat
 import androidx.work.*
 import com.desk.moodboard.data.model.CalendarEvent
 import com.desk.moodboard.data.model.EventRequest
@@ -15,6 +18,9 @@ import java.util.concurrent.TimeUnit
 class CalendarRepository(private val context: Context) {
 
     fun getEvents(startDate: LocalDateTime, endDate: LocalDateTime): List<CalendarEvent> {
+        if (!hasPermission(Manifest.permission.READ_CALENDAR)) {
+            return emptyList()
+        }
         val events = mutableListOf<CalendarEvent>()
         val projection = arrayOf(
             CalendarContract.Events._ID,
@@ -63,6 +69,9 @@ class CalendarRepository(private val context: Context) {
     }
 
     fun createEvent(request: EventRequest): Boolean {
+        if (!hasPermission(Manifest.permission.WRITE_CALENDAR)) {
+            return false
+        }
         val startTime = request.startTime ?: return false
         val endTime = request.endTime ?: startTime.toInstant(TimeZone.currentSystemDefault())
             .plus(request.duration?.toLong() ?: 60L, DateTimeUnit.MINUTE)
@@ -91,6 +100,10 @@ class CalendarRepository(private val context: Context) {
         }
         
         return uri != null
+    }
+
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun scheduleReminder(title: String, startTime: LocalDateTime) {

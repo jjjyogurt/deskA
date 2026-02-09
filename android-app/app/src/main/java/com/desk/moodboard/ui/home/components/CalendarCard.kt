@@ -10,16 +10,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.ui.home.CalendarViewMode
 import com.desk.moodboard.ui.theme.*
@@ -30,7 +40,32 @@ import kotlinx.datetime.toJavaLocalDate
 
 @Composable
 fun CalendarCard(viewModel: CalendarViewModel) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+    var hasPermission by remember { mutableStateOf(false) }
+    var permissionChecked by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasPermission = isGranted
+        permissionChecked = true
+        if (isGranted) {
+            viewModel.refreshEvents()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+        hasPermission = granted
+        permissionChecked = true
+        if (granted) {
+            viewModel.refreshEvents()
+        }
+    }
     
     Card(
         modifier = Modifier.fillMaxWidth().height(300.dp),
@@ -47,72 +82,96 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                 modifier = Modifier.padding(Dimens.cardPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Header with Controls
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        val headerText = when (uiState.viewMode) {
-                            CalendarViewMode.MONTH -> "${uiState.selectedDate.month} ${uiState.selectedDate.year}"
-                            CalendarViewMode.WEEK -> "Week of ${uiState.selectedDate.dayOfMonth} ${uiState.selectedDate.month}"
-                            CalendarViewMode.DAY -> "${uiState.selectedDate.dayOfWeek}, ${uiState.selectedDate.month} ${uiState.selectedDate.dayOfMonth}"
-                        }
+                if (!permissionChecked || !hasPermission) {
                     Text(
-                            text = headerText,
+                        text = "Calendar access needed",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = TextDark
                     )
+                    Text(
+                        text = "Grant permission to show your upcoming events.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextGrey
+                    )
+                    Button(
+                        onClick = { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "Enable Calendar",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium)
+                        )
                     }
-                    
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        CalendarNavButton("<") { viewModel.previous() }
-                        CalendarNavButton(">") { viewModel.next() }
-                    }
-                }
+                } else {
+                    // Header with Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            val headerText = when (uiState.viewMode) {
+                                CalendarViewMode.MONTH -> "${uiState.selectedDate.month} ${uiState.selectedDate.year}"
+                                CalendarViewMode.WEEK -> "Week of ${uiState.selectedDate.dayOfMonth} ${uiState.selectedDate.month}"
+                                CalendarViewMode.DAY -> "${uiState.selectedDate.dayOfWeek}, ${uiState.selectedDate.month} ${uiState.selectedDate.dayOfMonth}"
+                            }
+                            Text(
+                                text = headerText,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextDark
+                            )
+                        }
 
-                // View Mode Toggles
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    ViewModeButton("Day", uiState.viewMode == CalendarViewMode.DAY) {
-                        viewModel.setViewMode(CalendarViewMode.DAY)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            CalendarNavButton("<") { viewModel.previous() }
+                            CalendarNavButton(">") { viewModel.next() }
+                        }
                     }
-                    ViewModeButton("Week", uiState.viewMode == CalendarViewMode.WEEK) {
-                        viewModel.setViewMode(CalendarViewMode.WEEK)
-                    }
-                    ViewModeButton("Month", uiState.viewMode == CalendarViewMode.MONTH) {
-                        viewModel.setViewMode(CalendarViewMode.MONTH)
-                    }
-                }
-                
-                // Dynamic View Content
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    when (uiState.viewMode) {
-                        CalendarViewMode.MONTH -> MonthView(uiState.selectedDate, uiState.events, viewModel)
-                        CalendarViewMode.WEEK -> WeekView(uiState.selectedDate, uiState.events)
-                        CalendarViewMode.DAY -> DayView(uiState.selectedDate, uiState.events)
-                    }
-                }
 
-                // Selected Day Events
-                if (uiState.viewMode == CalendarViewMode.MONTH) {
-                    val selectedDayEvents = uiState.events.filter { it.startTime.date == uiState.selectedDate }
-                    if (selectedDayEvents.isNotEmpty()) {
-                        HorizontalDivider(color = FillGrey.copy(alpha = 0.3f))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            selectedDayEvents.take(2).forEach { event ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(6.dp).background(AccentOrange, CircleShape))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = event.title,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextDark,
-                                        maxLines = 1
-                                    )
+                    // View Mode Toggles
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ViewModeButton("Day", uiState.viewMode == CalendarViewMode.DAY) {
+                            viewModel.setViewMode(CalendarViewMode.DAY)
+                        }
+                        ViewModeButton("Week", uiState.viewMode == CalendarViewMode.WEEK) {
+                            viewModel.setViewMode(CalendarViewMode.WEEK)
+                        }
+                        ViewModeButton("Month", uiState.viewMode == CalendarViewMode.MONTH) {
+                            viewModel.setViewMode(CalendarViewMode.MONTH)
+                        }
+                    }
+
+                    // Dynamic View Content
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        when (uiState.viewMode) {
+                            CalendarViewMode.MONTH -> MonthView(uiState.selectedDate, uiState.events, viewModel)
+                            CalendarViewMode.WEEK -> WeekView(uiState.selectedDate, uiState.events)
+                            CalendarViewMode.DAY -> DayView(uiState.selectedDate, uiState.events)
+                        }
+                    }
+
+                    // Selected Day Events
+                    if (uiState.viewMode == CalendarViewMode.MONTH) {
+                        val selectedDayEvents = uiState.events.filter { it.startTime.date == uiState.selectedDate }
+                        if (selectedDayEvents.isNotEmpty()) {
+                            HorizontalDivider(color = FillGrey.copy(alpha = 0.3f))
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                selectedDayEvents.take(2).forEach { event ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(6.dp).background(AccentOrange, CircleShape))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = event.title,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextDark,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         }
