@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,7 +27,8 @@ class DeskBleClient(
 ) {
     private companion object {
         private const val Tag = "DeskBleClient"
-        private const val ScanReportDelayMs = 150L
+        private const val ScanReportDelayMs = 500L
+        private const val ScanUiUpdateIntervalMs = 400L
     }
     private data class WriteRequest(
         val serviceUuid: UUID,
@@ -43,6 +45,7 @@ class DeskBleClient(
     private var bluetoothGatt: BluetoothGatt? = null
     private var activeScanCallback: ScanCallback? = null
     private var scanResultsByAddress: Map<String, DeskBleDevice> = emptyMap()
+    private var lastScanUiUpdateMs = 0L
     private val writeQueue = ArrayDeque<WriteRequest>()
     private val writeLock = Any()
     private var writeInFlight = false
@@ -203,7 +206,11 @@ class DeskBleClient(
         scanResultsByAddress = items.fold(scanResultsByAddress) { acc, item ->
             acc + (item.address to item)
         }
-        _scanResults.value = scanResultsByAddress.values.sortedByDescending { it.rssi }
+        val now = SystemClock.uptimeMillis()
+        if (now - lastScanUiUpdateMs >= ScanUiUpdateIntervalMs) {
+            lastScanUiUpdateMs = now
+            _scanResults.value = scanResultsByAddress.values.sortedByDescending { it.rssi }
+        }
         items.forEach { item ->
             _events.tryEmit(DeskBleClientEvent.DeviceFound(item))
         }
