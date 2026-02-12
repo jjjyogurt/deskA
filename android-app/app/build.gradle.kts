@@ -118,6 +118,9 @@ dependencies {
     // WorkManager for reminders
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // DataStore for preferences
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
     // Koin DI
     val koinVersion = "3.5.3"
     implementation("io.insert-koin:koin-android:$koinVersion")

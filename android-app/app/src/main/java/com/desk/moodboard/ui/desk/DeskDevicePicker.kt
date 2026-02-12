@@ -44,9 +44,9 @@ import androidx.compose.ui.unit.dp
 import com.desk.moodboard.data.ble.DeskBleDevice
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
 
 @Composable
 fun DeskDevicePicker(
@@ -71,7 +71,7 @@ fun DeskDevicePicker(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Select Desk", color = TextDark)
+                Text("Select Desk", color = primaryTextColor())
                 if (isScanning) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
@@ -100,7 +100,7 @@ fun DeskDevicePicker(
                             Text(
                                 text = "No devices found. Try rescanning.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGrey,
+                                color = secondaryTextColor(),
                             )
                             TextButton(onClick = onRescan) {
                                 Text("Rescan")
@@ -124,7 +124,7 @@ fun DeskDevicePicker(
                             .align(Alignment.TopEnd)
                             .fillMaxHeight()
                             .width(4.dp)
-                            .background(FillGrey.copy(alpha = 0.25f))
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
                     )
 
                     Box(
@@ -133,7 +133,10 @@ fun DeskDevicePicker(
                             .offset(y = with(LocalDensity.current) { indicatorOffset.toDp() })
                             .width(4.dp)
                             .height(with(LocalDensity.current) { indicatorHeight.toDp() })
-                            .background(TextGrey.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
+                            .background(
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                                RoundedCornerShape(2.dp)
+                            )
                     )
                 }
             }
@@ -153,7 +156,7 @@ private fun DeviceRow(
     val scale by animateFloatAsState(targetValue = if (isPressed) 0.97f else 1f, label = "scale")
     val animatedBgColor by animateColorAsState(
         targetValue = when {
-            isPressed -> FillGrey.copy(alpha = 0.12f)
+            isPressed -> MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
             isSelected -> AccentOrange.copy(alpha = 0.05f)
             else -> Color.White
         },
@@ -161,7 +164,7 @@ private fun DeviceRow(
     )
     val borderColor by animateColorAsState(
         targetValue = when {
-            isPressed -> FillGrey.copy(alpha = 0.45f)
+            isPressed -> MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
             isSelected -> AccentOrange.copy(alpha = 0.2f)
             else -> Color.Transparent
         },
@@ -197,19 +200,19 @@ private fun DeviceRow(
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     ),
-                    color = if (isSelected) AccentOrange else TextDark,
+                    color = if (isSelected) eInkTextColorOr(AccentOrange) else primaryTextColor(),
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = "${device.rssi} dBm",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
             }
             Text(
                 text = device.address,
                 style = MaterialTheme.typography.labelSmall,
-                color = TextGrey.copy(alpha = 0.7f),
+                color = secondaryTextColor(),
             )
         }
     }

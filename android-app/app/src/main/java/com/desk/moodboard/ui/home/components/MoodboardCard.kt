@@ -51,8 +51,12 @@ fun MoodboardCard(assistantViewModel: AssistantViewModel) {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -66,12 +70,12 @@ fun MoodboardCard(assistantViewModel: AssistantViewModel) {
                     Text(
                         text = "Moodboard",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = TextDark
+                        color = primaryTextColor()
                     )
                     Text(
                         text = "${moodText.length}/$MoodboardMaxLength",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = TextGrey
+                        color = secondaryTextColor()
                     )
                 }
                 
@@ -79,14 +83,17 @@ fun MoodboardCard(assistantViewModel: AssistantViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(80.dp)
-                        .background(FillGrey.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .background(
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            RoundedCornerShape(8.dp)
+                        )
                         .padding(10.dp)
                 ) {
                     if (moodText.isBlank()) {
                         Text(
                             text = "How are you feeling today?",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                            color = TextGrey.copy(alpha = 0.7f)
+                            color = secondaryTextColor()
                         )
                     }
                     BasicTextField(
@@ -97,7 +104,7 @@ fun MoodboardCard(assistantViewModel: AssistantViewModel) {
                         modifier = Modifier.fillMaxSize(),
                         textStyle = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 11.sp,
-                            color = TextDark
+                            color = primaryTextColor()
                         ),
                         maxLines = 3,
                         singleLine = false

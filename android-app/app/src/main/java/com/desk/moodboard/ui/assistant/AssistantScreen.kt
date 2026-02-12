@@ -29,8 +29,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.desk.moodboard.data.model.ChatMessage
 import com.desk.moodboard.ui.theme.AccentOrange
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.appBackgroundColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +45,7 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF8F9FA))
+                .background(appBackgroundColor())
         ) {
             // Header
             Row(
@@ -55,14 +57,14 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = TextGrey,
+                    tint = secondaryTextColor(),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "AI CALENDAR ASSISTANT",
                     style = MaterialTheme.typography.labelLarge,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                     letterSpacing = 1.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -100,7 +102,7 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
             // Input Area
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
+                color = appBackgroundColor(),
                 shadowElevation = 8.dp
             ) {
                 Row(
@@ -113,10 +115,10 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
                         value = inputText,
                         onValueChange = { inputText = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Ask me to schedule something...", color = TextGrey) },
+                        placeholder = { Text("Ask me to schedule something...", color = secondaryTextColor()) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.LightGray,
-                            unfocusedBorderColor = Color.LightGray,
+                            focusedBorderColor = MaterialTheme.colorScheme.outline,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                             cursorColor = AccentOrange
                         ),
                         shape = RoundedCornerShape(8.dp),
@@ -136,7 +138,7 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
                         Icon(
                             Icons.Default.Send,
                             contentDescription = "Send",
-                            tint = Color.White,
+                            tint = eInkTextColorOr(Color.White),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -150,7 +152,7 @@ fun AssistantScreen(viewModel: AssistantViewModel) {
                         Icon(
                             Icons.Default.Mic,
                             contentDescription = "Record",
-                            tint = if (uiState.isRecording) Color.White else TextDark,
+                            tint = if (uiState.isRecording) eInkTextColorOr(Color.White) else primaryTextColor(),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -196,7 +198,7 @@ fun SuccessCheckmark() {
 fun ChatBubble(message: ChatMessage) {
     val alignment = if (message.isUser) Alignment.End else Alignment.Start
     val bubbleColor = if (message.isUser) AccentOrange.copy(alpha = 0.1f) else Color(0xFFE3F2FD)
-    val textColor = TextDark
+    val textColor = primaryTextColor()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -222,7 +224,7 @@ fun ChatBubble(message: ChatMessage) {
         Text(
             text = "Just now", // Placeholder for timestamp formatting
             style = MaterialTheme.typography.labelSmall,
-            color = TextGrey,
+            color = secondaryTextColor(),
             modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
         )
     }

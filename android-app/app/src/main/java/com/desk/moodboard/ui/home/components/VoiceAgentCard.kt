@@ -77,9 +77,9 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
         modifier = Modifier
             .size(width = width, height = height),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White,
+        color = appSurfaceColor(),
         shadowElevation = 4.dp,
-        border = BorderStroke(1.dp, FillGrey.copy(alpha = 0.4f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (isExpanded) {
@@ -95,14 +95,14 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                     Text(
                         text = "VOICE AGENT",
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 10.sp),
-                        color = TextGrey,
+                        color = secondaryTextColor(),
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
                     )
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Collapse",
-                        tint = TextGrey,
+                        tint = secondaryTextColor(),
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -127,7 +127,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                                     .fillMaxWidth()
                                     .height(2.dp),
                                 color = AccentOrange,
-                                trackColor = FillGrey.copy(alpha = 0.3f)
+                                trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                             )
                         }
                     }
@@ -145,10 +145,10 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
 
             // Determine color for the strip text
             val stripTextColor = when {
-                uiState.isRecording -> AccentOrange
-                uiState.isLoading -> TextGrey.copy(alpha = 0.6f)
-                uiState.messages.isNotEmpty() && !uiState.messages.last().isUser && !isExpanded -> AccentOrange.copy(alpha = 0.9f)
-                else -> TextGrey
+                uiState.isRecording -> eInkTextColorOr(AccentOrange)
+                uiState.isLoading -> secondaryTextColor()
+                uiState.messages.isNotEmpty() && !uiState.messages.last().isUser && !isExpanded -> eInkTextColorOr(AccentOrange)
+                else -> secondaryTextColor()
             }
 
             // The persistent Input Strip
@@ -210,7 +210,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                             .fillMaxWidth()
                             .align(Alignment.CenterStart),
                         textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            color = TextDark,
+                            color = primaryTextColor(),
                             fontSize = if (isExpanded) 13.sp else 10.sp
                         ),
                         cursorBrush = SolidColor(AccentOrange),
@@ -227,7 +227,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowUp,
                             contentDescription = "Expand",
-                            tint = TextGrey,
+                            tint = secondaryTextColor(),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -249,7 +249,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                         Icon(
                             Icons.Default.Send,
                             contentDescription = "Send",
-                            tint = if (inputText.isNotBlank()) Color.White else TextGrey.copy(alpha = 0.4f),
+                            tint = if (inputText.isNotBlank()) eInkTextColorOr(Color.White) else secondaryTextColor(),
                             modifier = Modifier.size(16.dp)
                         )
                     }

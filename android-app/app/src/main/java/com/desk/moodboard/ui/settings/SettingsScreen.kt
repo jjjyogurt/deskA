@@ -41,16 +41,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.desk.moodboard.ui.theme.BackgroundGrey
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.YogurtBlue as AccentRed
 import com.desk.moodboard.ui.theme.YogurtSilk
@@ -58,18 +55,28 @@ import com.desk.moodboard.ui.theme.YogurtNavy
 import com.desk.moodboard.ui.theme.YogurtMint
 import com.desk.moodboard.ui.theme.YogurtSilver
 import com.desk.moodboard.ui.theme.YogurtGrey as OldYogurtGrey
+import com.desk.moodboard.ui.theme.appBackgroundColor
+import com.desk.moodboard.ui.theme.appSurfaceColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
+import org.koin.androidx.compose.koinViewModel
 
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.desk.moodboard.ui.posture.PostureViewModel
 import androidx.compose.runtime.collectAsState
 
 @Composable
-fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
+fun SettingsScreen(
+    postureViewModel: PostureViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel = koinViewModel(),
+) {
     val scroll = rememberScrollState()
     val context = LocalContext.current
 
     var darkModeEnabled by remember { mutableStateOf(false) }
     val postureDetectionEnabled by postureViewModel.isServiceRunning.collectAsState()
+    val eInkEnabled by settingsViewModel.eInkEnabled.collectAsStateWithLifecycle()
     var showLogViewer by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(seedLogs()) }
 
@@ -84,7 +91,7 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = BackgroundGrey,
+        color = appBackgroundColor(),
     ) {
         Column(
             modifier = Modifier
@@ -97,12 +104,12 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    color = primaryTextColor(),
                 )
                 Text(
                     text = "Customize your experience",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
                 )
             }
 
@@ -117,6 +124,13 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
                 ) {
                     SettingsCard(title = "Appearance") {
                         SwitchRow(
+                            title = "E-ink Mode",
+                            subtitle = "High contrast",
+                            checked = eInkEnabled,
+                            onToggle = { settingsViewModel.setEInk(it) }
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        SwitchRow(
                             title = "Dark Mode",
                             subtitle = "Theme",
                             checked = darkModeEnabled,
@@ -130,7 +144,7 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
                             value = "2 saved",
                             onClick = { showToast(context, "Coming soon") }
                         )
-                        HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                         ClickableRow(
                             title = "Sitting Reminder",
                             value = "45m",
@@ -172,25 +186,29 @@ fun SettingsScreen(postureViewModel: PostureViewModel = viewModel()) {
                         ValueRow(
                             title = "Entries",
                             value = logs.size.toString(),
-                            valueColor = AccentOrange,
+                            valueColor = eInkTextColorOr(AccentOrange),
                         )
-                        HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                         ActionRow(
                             title = "View Logs",
                             hint = "→",
                             onClick = { showLogViewer = true }
                         )
-                        HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                         ActionRow(
                             title = "Clear Logs",
                             hint = "×",
-                            titleColor = Color(0xFFB4371E),
+                            titleColor = eInkTextColorOr(Color(0xFFB4371E)),
                             onClick = { logs = emptyList() }
                         )
                     }
 
                     SettingsCard(title = "Info") {
-                        ValueRow(title = "Version", value = "1.0.0", valueColor = TextGrey)
+                        ValueRow(
+                            title = "Version",
+                            value = "1.0.0",
+                            valueColor = secondaryTextColor(),
+                        )
                     }
                 }
             }
@@ -220,8 +238,12 @@ private fun SettingsCard(
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -230,7 +252,7 @@ private fun SettingsCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    color = primaryTextColor(),
                 )
                 content()
             }
@@ -255,13 +277,13 @@ private fun SwitchRow(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
-                color = TextDark
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                color = primaryTextColor()
             )
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = TextGrey
+                style = MaterialTheme.typography.labelSmall,
+                color = secondaryTextColor()
             )
         }
         Switch(
@@ -271,8 +293,8 @@ private fun SwitchRow(
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
                 checkedTrackColor = AccentOrange,
-                uncheckedThumbColor = FillGrey,
-                uncheckedTrackColor = FillGrey.copy(alpha = 0.3f)
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
             )
         )
     }
@@ -294,13 +316,13 @@ private fun ClickableRow(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
-            color = TextDark,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+            color = primaryTextColor(),
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-            color = TextGrey,
+            style = MaterialTheme.typography.labelSmall,
+            color = secondaryTextColor(),
         )
     }
 }
@@ -318,12 +340,12 @@ private fun ValueRow(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
-            color = TextDark,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+            color = primaryTextColor(),
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
             color = valueColor,
         )
     }
@@ -333,9 +355,10 @@ private fun ValueRow(
 private fun ActionRow(
     title: String,
     hint: String,
-    titleColor: Color = TextDark,
+    titleColor: Color = Color.Unspecified,
     onClick: () -> Unit,
 ) {
+    val resolvedTitleColor = if (titleColor == Color.Unspecified) primaryTextColor() else titleColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -346,13 +369,13 @@ private fun ActionRow(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
-            color = titleColor,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+            color = resolvedTitleColor,
         )
         Text(
             text = hint,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
-            color = titleColor,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = resolvedTitleColor,
         )
     }
 }
@@ -382,7 +405,7 @@ private fun LogViewerDialog(
                         style = MaterialTheme.typography.titleLarge.copy(color = YogurtSilk),
                     )
                     TextButton(onClick = onDismiss) {
-                        Text("Close", color = AccentOrange, fontSize = 15.sp)
+                        Text("Close", color = eInkTextColorOr(AccentOrange), fontSize = 15.sp)
                     }
                 }
 
@@ -412,24 +435,24 @@ private fun LogViewerDialog(
                             ) {
                                 Text(
                                     text = "[${log.level.name}]",
-                                    color = log.level.color(),
+                                    color = eInkTextColorOr(log.level.color()),
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 )
                                 Text(
                                     text = "[${log.category}]",
-                                    color = TextGrey,
+                                    color = secondaryTextColor(),
                                     style = MaterialTheme.typography.labelMedium,
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
                                     text = log.time,
-                                    color = FillGrey,
+                                    color = secondaryTextColor(),
                                     style = MaterialTheme.typography.labelSmall,
                                 )
                             }
                             Text(
                                 text = log.message,
-                                color = Color.White,
+                                color = primaryTextColor(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
@@ -437,7 +460,7 @@ private fun LogViewerDialog(
                             log.data?.let {
                                 Text(
                                     text = it,
-                                    color = TextGrey,
+                                    color = secondaryTextColor(),
                                     style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
                                 )
                             }

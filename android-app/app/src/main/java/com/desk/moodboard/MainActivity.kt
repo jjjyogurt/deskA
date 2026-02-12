@@ -51,12 +51,15 @@ import com.desk.moodboard.ui.health.HealthScreen
 import com.desk.moodboard.ui.home.HomeScreen
 import com.desk.moodboard.ui.settings.SettingsScreen
 import com.desk.moodboard.ui.theme.AccentOrange
-import com.desk.moodboard.ui.theme.BackgroundGrey
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.MoodboardTheme
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.appBackgroundColor
+import com.desk.moodboard.ui.theme.appSurfaceColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.secondaryTextColor
+import com.desk.moodboard.ui.settings.SettingsViewModel
 import org.koin.androidx.compose.koinViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +72,13 @@ class MainActivity : ComponentActivity() {
         windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         setContent {
-            MoodboardTheme(darkTheme = false) {
+            val settingsViewModel: SettingsViewModel = koinViewModel()
+            val eInkEnabled by settingsViewModel.eInkEnabled.collectAsStateWithLifecycle()
+
+            MoodboardTheme(
+                darkTheme = false,
+                eInkMode = eInkEnabled,
+            ) {
                 MoodboardApp()
             }
         }
@@ -98,7 +107,7 @@ private fun MoodboardApp() {
     Scaffold(
         bottomBar = {
             Surface(
-                color = Color.White,
+                color = appSurfaceColor(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(Dimens.navHeight)
@@ -132,16 +141,15 @@ private fun MoodboardApp() {
                                 text = item.label,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 10.sp
                                 ),
-                                color = if (selected) AccentOrange else TextGrey.copy(alpha = 0.7f)
+                                color = if (selected) eInkTextColorOr(AccentOrange) else secondaryTextColor()
                             )
                         }
                     }
                 }
             }
         },
-        containerColor = BackgroundGrey,
+        containerColor = appBackgroundColor(),
         contentWindowInsets = WindowInsets(0)
     ) { innerPadding ->
         Box(

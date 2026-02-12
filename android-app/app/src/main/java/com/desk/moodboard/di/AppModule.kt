@@ -5,6 +5,7 @@ import com.desk.moodboard.data.local.TodoDatabase
 import com.desk.moodboard.data.ble.DeskBleClient
 import com.desk.moodboard.data.ble.DeskBleConfigLoader
 import com.desk.moodboard.data.ble.DeskBleRepository
+import com.desk.moodboard.data.preferences.UserPreferences
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.data.repository.NoteRepository
@@ -16,6 +17,7 @@ import com.desk.moodboard.ui.assistant.VoiceAgentViewModel
 import com.desk.moodboard.ui.desk.DeskControlViewModel
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.ui.home.TodoViewModel
+import com.desk.moodboard.ui.settings.SettingsViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
 import org.koin.android.ext.koin.androidContext
@@ -51,10 +53,12 @@ val appModule = module {
     single { DeskBleRepository(get(), get()) }
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
+    single { UserPreferences(androidContext()) }
 
     viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { DeskControlViewModel(get()) }
+    viewModel { SettingsViewModel(get()) }
 }
 

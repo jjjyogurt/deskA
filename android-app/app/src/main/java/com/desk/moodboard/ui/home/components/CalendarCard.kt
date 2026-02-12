@@ -75,8 +75,12 @@ fun CalendarCard(viewModel: CalendarViewModel) {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -86,16 +90,19 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                     Text(
                         text = "Calendar access needed",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = TextDark
+                        color = primaryTextColor()
                     )
                     Text(
                         text = "Grant permission to show your upcoming events.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextGrey
+                        color = secondaryTextColor()
                     )
                     Button(
                         onClick = { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentOrange,
+                            contentColor = eInkTextColorOr(Color.White),
+                        ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(6.dp)
                     ) {
@@ -120,7 +127,7 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                             Text(
                                 text = headerText,
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = TextDark
+                                color = primaryTextColor()
                             )
                         }
 
@@ -159,7 +166,7 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                     if (uiState.viewMode == CalendarViewMode.MONTH) {
                         val selectedDayEvents = uiState.events.filter { it.startTime.date == uiState.selectedDate }
                         if (selectedDayEvents.isNotEmpty()) {
-                            HorizontalDivider(color = FillGrey.copy(alpha = 0.3f))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 selectedDayEvents.take(2).forEach { event ->
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +175,7 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                                         Text(
                                             text = event.title,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = TextDark,
+                                            color = primaryTextColor(),
                                             maxLines = 1
                                         )
                                     }
@@ -195,7 +202,7 @@ private fun ViewModeButton(label: String, isSelected: Boolean, onClick: () -> Un
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) AccentOrange else TextGrey,
+                color = if (isSelected) AccentOrange else secondaryTextColor(),
                 fontSize = 9.sp
             )
         )
@@ -217,7 +224,7 @@ private fun MonthView(
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                     fontSize = 10.sp
                 )
             }
@@ -259,14 +266,18 @@ private fun MonthView(
                                     ) {
                                         Text(
                                             text = "$day",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = eInkTextColorOr(Color.White),
+                                                fontSize = 10.sp
+                                            )
                                         )
                                     }
                                 } else {
                                     Text(
                                         text = "$day",
                                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                        color = TextDark.copy(alpha = 0.9f),
+                                        color = primaryTextColor(),
                                         fontSize = 10.sp
                                     )
                                 }
@@ -313,14 +324,14 @@ private fun WeekView(
                     text = day.dayOfWeek.name.take(3),
                     modifier = Modifier.width(30.dp),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = if (day == selectedDate) AccentOrange else TextGrey,
+                    color = if (day == selectedDate) AccentOrange else secondaryTextColor(),
                     fontSize = 10.sp
                 )
                 Text(
                     text = day.dayOfMonth.toString(),
                     modifier = Modifier.width(20.dp),
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextDark,
+                    color = primaryTextColor(),
                     fontSize = 10.sp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -328,7 +339,7 @@ private fun WeekView(
                     Text(
                         text = dayEvents.first().title,
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextGrey,
+                        color = secondaryTextColor(),
                         fontSize = 9.sp,
                         maxLines = 1,
                         modifier = Modifier.weight(1f)
@@ -338,7 +349,7 @@ private fun WeekView(
                         modifier = Modifier
                             .weight(1f)
                             .height(1.dp)
-                            .background(FillGrey.copy(alpha = 0.3f))
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                     )
                 }
             }
@@ -365,7 +376,7 @@ private fun DayView(
                     text = String.format("%02d:00", hour),
                     modifier = Modifier.width(40.dp),
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                     fontSize = 10.sp
                 )
                 if (hourEvents.isNotEmpty()) {
@@ -378,7 +389,7 @@ private fun DayView(
                             Text(
                                 text = hourEvents.first().title,
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = AccentOrange,
+                                color = eInkTextColorOr(AccentOrange),
                                 fontSize = 9.sp
                             )
                         }
@@ -388,7 +399,7 @@ private fun DayView(
                         modifier = Modifier
                             .weight(1f)
                             .height(1.dp)
-                            .background(FillGrey.copy(alpha = 0.3f))
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                     )
                 }
             }
@@ -402,13 +413,13 @@ private fun CalendarNavButton(label: String, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.size(24.dp),
         shape = RoundedCornerShape(4.dp),
-        color = FillGrey.copy(alpha = 0.4f)
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
     ) {
         Box(contentAlignment = Alignment.Center) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            color = TextDark,
+            color = primaryTextColor(),
             fontSize = 11.sp
         )
         }

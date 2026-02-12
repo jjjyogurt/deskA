@@ -34,7 +34,7 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = BackgroundGrey,
+            color = appBackgroundColor(),
         ) {
             val scroll = rememberScrollState()
             Column(
@@ -57,9 +57,8 @@ fun HomeScreen(
                         text = currentDateTime.format(formatter),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp
                         ),
-                        color = TextGrey
+                        color = secondaryTextColor()
                     )
                 }
 

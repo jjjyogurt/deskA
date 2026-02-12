@@ -41,12 +41,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.desk.moodboard.ui.theme.BackgroundGrey
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
 import com.desk.moodboard.ui.theme.AccentOrange
+import com.desk.moodboard.ui.theme.appBackgroundColor
+import com.desk.moodboard.ui.theme.appSurfaceColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
 import com.desk.moodboard.ui.theme.YogurtSilk
 import com.desk.moodboard.ui.theme.YogurtNavy
 import com.desk.moodboard.ui.theme.YogurtGrey as OldYogurtGrey
@@ -59,7 +60,7 @@ fun FocusScreen(viewModel: FocusViewModel = viewModel()) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = BackgroundGrey,
+        color = appBackgroundColor(),
     ) {
         Column(
             modifier = Modifier
@@ -71,12 +72,12 @@ fun FocusScreen(viewModel: FocusViewModel = viewModel()) {
                 Text(
                     text = "Focus",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    color = primaryTextColor(),
                 )
                 Text(
                     text = "Stay productive and focused",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
                 )
             }
 
@@ -136,8 +137,12 @@ private fun TimerCard(
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -153,7 +158,7 @@ private fun TimerCard(
                         letterSpacing = 0.9.sp,
                         fontSize = 10.sp
                     ),
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
                 Text(
                     text = displayTime,
@@ -162,12 +167,12 @@ private fun TimerCard(
                         fontWeight = FontWeight.Bold, 
                         fontSize = 41.sp
                     ),
-                    color = if (isRunning) AccentOrange else TextDark,
+                    color = if (isRunning) eInkTextColorOr(AccentOrange) else primaryTextColor(),
                 )
                 Text(
                     text = if (isRunning) "Focusing..." else "Tap time to set goal",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
@@ -175,7 +180,7 @@ private fun TimerCard(
                     modifier = Modifier.fillMaxWidth(0.85f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isRunning) Color.White else AccentOrange,
-                        contentColor = if (isRunning) AccentOrange else Color.White,
+                        contentColor = if (isRunning) eInkTextColorOr(AccentOrange) else eInkTextColorOr(Color.White),
                     ),
                     shape = RoundedCornerShape(6.dp),
                     border = if (isRunning) androidx.compose.foundation.BorderStroke(1.dp, AccentOrange) else null,
@@ -201,13 +206,13 @@ private fun TimerPickerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = appSurfaceColor(),
         dragHandle = {
             Box(
                 modifier = Modifier
                     .padding(vertical = 12.dp)
                     .size(width = 32.dp, height = 4.dp)
-                    .background(FillGrey, CircleShape)
+                    .background(MaterialTheme.colorScheme.outline, CircleShape)
             )
         }
     ) {
@@ -220,7 +225,7 @@ private fun TimerPickerBottomSheet(
             Text(
                 text = "Set Focus Duration",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = TextDark
+                color = primaryTextColor()
             )
             
             Row(
@@ -234,14 +239,17 @@ private fun TimerPickerBottomSheet(
                             .weight(1f)
                             .clickable { onDurationSelected(mins) },
                         shape = RoundedCornerShape(8.dp),
-                        color = BackgroundGrey,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, FillGrey.copy(alpha = 0.3f))
+                        color = appBackgroundColor(),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        )
                     ) {
                         Text(
                             text = label,
                             modifier = Modifier.padding(vertical = 12.dp),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                            color = TextDark,
+                            color = primaryTextColor(),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
@@ -272,8 +280,12 @@ private fun RowScope.StatCard(title: String, value: String, subtitle: String) {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -289,17 +301,17 @@ private fun RowScope.StatCard(title: String, value: String, subtitle: String) {
                         letterSpacing = 0.9.sp,
                         fontSize = 10.sp
                     ),
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    color = primaryTextColor(),
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
             }
         }
@@ -316,8 +328,12 @@ private fun DistractionCard() {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -326,7 +342,7 @@ private fun DistractionCard() {
                 Text(
                     text = "Distractions",
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    color = primaryTextColor(),
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -340,13 +356,13 @@ private fun DistractionCard() {
                     Text(
                         text = "None detected",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = TextDark,
+                    color = primaryTextColor(),
                     )
                 }
                 Text(
                     text = "Tracked during sessions",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
+                color = secondaryTextColor(),
                 )
             }
         }

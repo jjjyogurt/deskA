@@ -48,7 +48,7 @@ open class VoiceAgentViewModel(
     private var asrInitialized = false
 
     init {
-        addMessage("Hi! I'm your AI assistant. How can I help?", false)
+        addMessage("Hi! How can I help?", false)
     }
 
     fun onSendMessage(text: String) {

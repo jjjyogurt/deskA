@@ -53,9 +53,10 @@ import com.desk.moodboard.domain.desk.DeskError
 import com.desk.moodboard.domain.desk.DeskMemorySlot
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.appSurfaceColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
 import kotlinx.coroutines.delay
 
 @Composable
@@ -115,8 +116,12 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     ) {
         Column(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
                 .padding(Dimens.cardPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -129,7 +134,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 Text(
                     text = "Desk Control",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark,
+                    color = primaryTextColor(),
                 )
 
                 Row(
@@ -185,7 +190,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     Text(
                         text = "Selected: ${device.name ?: device.address}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextGrey,
+                        color = secondaryTextColor(),
                     )
                 }
             }
@@ -195,14 +200,14 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 Text(
                     text = errorMessage(currentError),
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
             }
 
             Text(
                 text = "Hold to move",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextGrey,
+                color = secondaryTextColor(),
             )
 
             Row(
@@ -243,12 +248,12 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     if (showDisconnectDialog) {
         AlertDialog(
             onDismissRequest = { showDisconnectDialog = false },
-            title = { Text("Disconnect Desk", color = TextDark) },
+            title = { Text("Disconnect Desk", color = primaryTextColor()) },
             text = {
                 Text(
                     "Are you sure you want to disconnect from the desk?",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
             },
             confirmButton = {
@@ -257,7 +262,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     showDisconnectDialog = false
                     showDevicePicker = true
                 }) {
-                    Text("Disconnect", color = Color.Red)
+                    Text("Disconnect", color = eInkTextColorOr(Color.Red))
                 }
             },
             dismissButton = {
@@ -293,12 +298,12 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     if (showPermissionDialog) {
         AlertDialog(
             onDismissRequest = { showPermissionDialog = false },
-            title = { Text("Permissions required", color = TextDark) },
+            title = { Text("Permissions required", color = primaryTextColor()) },
             text = {
                 Text(
                     "Please enable Location and Nearby devices permissions in Settings to scan for desks.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
             },
             confirmButton = {
@@ -335,14 +340,14 @@ private fun StatusChip(
 
     Box(
         modifier = Modifier
-            .background(FillGrey.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
             .then(clickableModifier)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-            color = TextGrey,
+            color = secondaryTextColor(),
         )
     }
 }

@@ -68,12 +68,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.content.pm.PackageManager
-import com.desk.moodboard.ui.theme.BackgroundGrey
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
 import com.desk.moodboard.ui.theme.AccentOrange
+import com.desk.moodboard.ui.theme.appBackgroundColor
+import com.desk.moodboard.ui.theme.appSurfaceColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
 import com.desk.moodboard.ui.theme.YogurtBlue as AccentRed
 import com.desk.moodboard.ui.theme.YogurtPeach as AccentPeach
 import com.desk.moodboard.ui.theme.YogurtSilk
@@ -109,7 +110,7 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = BackgroundGrey,
+        color = appBackgroundColor(),
     ) {
         val scroll = rememberScrollState()
 
@@ -125,7 +126,7 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
             Text(
                 text = "Health Overview",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = TextDark,
+                color = primaryTextColor(),
             )
 
             Row(
@@ -190,8 +191,12 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -203,7 +208,11 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(text = "Health Trend", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                        Text(
+                            text = "Health Trend",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = primaryTextColor(),
+                        )
                         if (isRecording) {
                             Box(
                                 modifier = Modifier
@@ -212,14 +221,24 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Box(modifier = Modifier.size(6.dp).background(AccentRed, CircleShape))
-                                    Text("Recording", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, color = AccentRed, fontWeight = FontWeight.Bold))
+                                    Text(
+                                        "Recording",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 8.sp,
+                                            color = eInkTextColorOr(AccentRed),
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    )
                                 }
                             }
                         }
                     }
                     Button(
                         onClick = onViewCamera,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentOrange,
+                            contentColor = eInkTextColorOr(Color.White),
+                        ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                         shape = RoundedCornerShape(6.dp)
                     ) {
@@ -229,7 +248,7 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                 Text(
                     text = "Weekly improvements.",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                 )
                 LineChart(
                     values = listOf(0.65f, 0.72f, 0.68f, 0.78f, 0.82f, 0.75f, 0.88f),
@@ -298,7 +317,7 @@ private fun LineChart(values: List<Float>, labels: List<String>) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextGrey,
+                    color = secondaryTextColor(),
                     fontSize = 10.sp,
                     modifier = Modifier.width(24.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -326,7 +345,10 @@ private fun BarChart(values: List<Float>, labels: List<String>) {
                     modifier = Modifier
                         .width(24.dp)
                         .height(80.dp)
-                        .background(FillGrey.copy(alpha = 0.3f), RoundedCornerShape(6.dp)),
+                        .background(
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            RoundedCornerShape(6.dp)
+                        ),
                     contentAlignment = Alignment.BottomCenter,
                 ) {
                     Box(
@@ -337,7 +359,12 @@ private fun BarChart(values: List<Float>, labels: List<String>) {
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(text = label, style = MaterialTheme.typography.labelSmall, color = TextGrey, fontSize = 10.sp)
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
+                    fontSize = 10.sp
+                )
             }
         }
     }
@@ -353,8 +380,12 @@ private fun HydrationCard() {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Row(
                 modifier = Modifier
@@ -364,18 +395,22 @@ private fun HydrationCard() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(text = "Hydration", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                    Text(
+                        text = "Hydration",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = primaryTextColor(),
+                    )
                     Text(
                         text = "Target 2000 ml",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = TextGrey,
+                        color = secondaryTextColor(),
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     ProgressBar(fraction = 0.32f, color = AccentRed.copy(alpha = 0.7f), height = 6.dp)
                     Text(
                         text = "640 ml logged",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
-                        color = TextDark,
+                        color = primaryTextColor(),
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -395,8 +430,12 @@ private fun HealthScoreCard() {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -405,7 +444,7 @@ private fun HealthScoreCard() {
                 Text(
                     text = "Health Score",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark
+                    color = primaryTextColor()
                 )
                 
                 Row(
@@ -418,9 +457,10 @@ private fun HealthScoreCard() {
                         modifier = Modifier.size(90.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        val outlineArcColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                         Canvas(modifier = Modifier.size(90.dp)) {
                             drawArc(
-                                color = FillGrey.copy(alpha = 0.3f),
+                                color = outlineArcColor,
                                 startAngle = 0f,
                                 sweepAngle = 360f,
                                 useCenter = false,
@@ -439,12 +479,12 @@ private fun HealthScoreCard() {
                             Text(
                                 text = "68",
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 21.sp),
-                                color = TextDark
+                                color = primaryTextColor()
                             )
                             Text(
                                 text = "SCORE",
                                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontSize = 10.sp),
-                                color = TextGrey
+                                color = secondaryTextColor()
                             )
                         }
                     }
@@ -454,12 +494,12 @@ private fun HealthScoreCard() {
                         Text(
                             text = "STATUS",
                             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp, fontSize = 10.sp),
-                            color = TextGrey,
+                            color = secondaryTextColor(),
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
                         Box(
                             modifier = Modifier
-                                .background(FillGrey.copy(alpha = 0.5f), CircleShape)
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -484,18 +524,26 @@ private fun ReminderCard() {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(1.dp, FillGrey.copy(alpha = 0.6f), RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(text = "Reminders", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = TextDark)
+                Text(
+                    text = "Reminders",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = primaryTextColor(),
+                )
                 ReminderRow("Stretch", "45 min", AccentOrange)
-                HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                 ReminderRow("Water", "60 min", AccentRed)
-                HorizontalDivider(color = FillGrey.copy(alpha = 0.4f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                 ReminderRow("Stand", "3 x day", AccentOrange)
             }
         }
@@ -562,9 +610,17 @@ private fun CameraPreviewDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Posture Camera", style = MaterialTheme.typography.titleMedium, color = TextDark)
+                    Text(
+                        "Posture Camera",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = primaryTextColor(),
+                    )
                     IconButton(onClick = onClose) {
-                        Icon(imageVector = Icons.Outlined.Close, contentDescription = "Close", tint = TextGrey)
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Close",
+                            tint = secondaryTextColor(),
+                        )
                     }
                 }
 
@@ -646,12 +702,15 @@ private fun CameraPreviewDialog(
                         Text(
                             text = currentResult.state.label,
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = if (currentResult.state == PostureState.SITTING_STRAIGHT || currentResult.state == PostureState.RECLINING) Color.Green else Color.Red
+                            color = eInkTextColorOr(
+                                if (currentResult.state == PostureState.SITTING_STRAIGHT || currentResult.state == PostureState.RECLINING) Color.Green
+                                else Color.Red
+                            )
                         )
                         Text(
                             text = "Confidence: ${(currentResult.confidence * 100).toInt()}%",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.8f)
+                            color = eInkTextColorOr(Color.White.copy(alpha = 0.8f))
                         )
                     }
                 }
@@ -660,7 +719,7 @@ private fun CameraPreviewDialog(
                 Text(
                     text = "Live posture preview (front camera)",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGrey
+                    color = secondaryTextColor()
                 )
             }
         }
@@ -675,15 +734,27 @@ private fun ReminderRow(title: String, cadence: String, color: Color) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text(text = title, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp), color = TextDark)
-            Text(text = cadence, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextGrey)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                color = primaryTextColor()
+            )
+            Text(
+                text = cadence,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = secondaryTextColor()
+            )
         }
         Box(
             modifier = Modifier
                 .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
                 .padding(horizontal = 10.dp, vertical = 4.dp),
         ) {
-            Text(text = "On", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp), color = color)
+            Text(
+                text = "On",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                color = eInkTextColorOr(color)
+            )
         }
     }
 }
@@ -702,7 +773,7 @@ private fun ProgressBar(fraction: Float, color: Color, height: androidx.compose.
         modifier = Modifier
             .fillMaxWidth()
             .height(height)
-            .background(FillGrey.copy(alpha = 0.3f), CircleShape),
+            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), CircleShape),
     ) {
         Box(
             modifier = Modifier
@@ -724,6 +795,11 @@ private fun Legend(color: Color, text: String) {
                 .size(8.dp)
                 .background(color.copy(alpha = 0.7f), CircleShape),
         )
-        Text(text = text, style = MaterialTheme.typography.labelSmall, color = TextGrey, fontSize = 9.sp)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = secondaryTextColor(),
+            fontSize = 9.sp
+        )
     }
 }

@@ -46,8 +46,12 @@ fun TodoCard(viewModel: TodoViewModel) {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -61,7 +65,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                     Text(
                         text = "Todo",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = TextDark
+                        color = primaryTextColor()
                     )
                 }
 
@@ -69,7 +73,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                     Text(
                         text = message,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = TextGrey
+                        color = secondaryTextColor()
                     )
                 }
 
@@ -83,7 +87,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                         Text(
                             text = "Say to Voice Agent: “Add groceries”",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextGrey
+                            color = secondaryTextColor()
                         )
                     }
                 } else {
@@ -101,7 +105,11 @@ fun TodoCard(viewModel: TodoViewModel) {
                                             if (todo.isDone) AccentOrange else Color.Transparent,
                                             CircleShape
                                         )
-                                        .border(1.dp, if (todo.isDone) AccentOrange else TextGrey, CircleShape)
+                                        .border(
+                                            1.dp,
+                                            if (todo.isDone) AccentOrange else secondaryTextColor(),
+                                            CircleShape
+                                        )
                                         .clickable { viewModel.onToggleTodoDone(todo) },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -109,7 +117,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                                         Icon(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = "Completed",
-                                            tint = Color.White,
+                                            tint = eInkTextColorOr(Color.White),
                                             modifier = Modifier.size(10.dp)
                                         )
                                     }
@@ -123,7 +131,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                                             fontSize = 12.sp,
                                             textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None
                                         ),
-                                        color = if (todo.isDone) TextGrey else TextDark,
+                                        color = if (todo.isDone) secondaryTextColor() else primaryTextColor(),
                                         maxLines = 1
                                     )
                                     val dueLabel = buildString {
@@ -140,7 +148,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                                                 fontSize = 10.sp,
                                                 textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None
                                             ),
-                                            color = TextGrey
+                                            color = secondaryTextColor()
                                         )
                                     }
                                 }
@@ -187,11 +195,15 @@ private fun FilterChipSmall(selected: Boolean, onClick: () -> Unit, label: Strin
         modifier = Modifier.height(24.dp),
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = AccentOrange.copy(alpha = 0.15f),
-            selectedLabelColor = AccentOrange,
-            containerColor = FillGrey.copy(alpha = 0.2f),
-            labelColor = TextGrey
+            selectedLabelColor = eInkTextColorOr(AccentOrange),
+            containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+            labelColor = secondaryTextColor()
         ),
-        border = BorderStroke(1.dp, if (selected) AccentOrange.copy(alpha = 0.5f) else FillGrey.copy(alpha = 0.4f))
+        border = BorderStroke(
+            1.dp,
+            if (selected) AccentOrange.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+        )
     )
 }
 

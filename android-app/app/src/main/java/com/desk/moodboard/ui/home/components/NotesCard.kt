@@ -43,9 +43,10 @@ import androidx.compose.ui.unit.sp
 import com.desk.moodboard.data.model.NoteItem
 import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.ui.theme.Dimens
-import com.desk.moodboard.ui.theme.FillGrey
-import com.desk.moodboard.ui.theme.TextDark
-import com.desk.moodboard.ui.theme.TextGrey
+import com.desk.moodboard.ui.theme.appSurfaceColor
+import com.desk.moodboard.ui.theme.eInkTextColorOr
+import com.desk.moodboard.ui.theme.primaryTextColor
+import com.desk.moodboard.ui.theme.secondaryTextColor
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -69,8 +70,12 @@ fun NotesCard(viewModel: TodoViewModel) {
     ) {
         Box(
             modifier = Modifier
-                .background(Color.White, RoundedCornerShape(Dimens.cardCorner))
-                .border(width = 1.dp, color = FillGrey.copy(alpha = 0.6f), shape = RoundedCornerShape(Dimens.cardCorner))
+                .background(appSurfaceColor(), RoundedCornerShape(Dimens.cardCorner))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(Dimens.cardCorner)
+                )
         ) {
             Column(
                 modifier = Modifier.padding(Dimens.cardPadding),
@@ -79,7 +84,7 @@ fun NotesCard(viewModel: TodoViewModel) {
                 Text(
                     text = "Idea Notes",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextDark
+                    color = primaryTextColor()
                 )
 
                 if (uiState.notes.isEmpty()) {
@@ -92,7 +97,7 @@ fun NotesCard(viewModel: TodoViewModel) {
                         Text(
                             text = "Say to Voice Agent: “Note: My new idea”",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextGrey
+                            color = secondaryTextColor()
                         )
                     }
                 } else {
@@ -132,7 +137,7 @@ fun NotesCard(viewModel: TodoViewModel) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete",
-                                            tint = Color.White
+                                            tint = eInkTextColorOr(Color.White)
                                         )
                                     }
                                 }
@@ -168,7 +173,7 @@ private fun NoteRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White) // Ensure background is white for swipe
+            .background(appSurfaceColor()) // Ensure background is white for swipe
             .clickable { onToggleExpand() }
             .animateContentSize()
             .padding(vertical = 4.dp, horizontal = 4.dp)
@@ -179,7 +184,7 @@ private fun NoteRow(
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
             ),
-            color = TextDark,
+            color = primaryTextColor(),
             maxLines = if (isExpanded) Int.MAX_VALUE else 1
         )
 
@@ -191,7 +196,7 @@ private fun NoteRow(
                     fontSize = 12.sp,
                     lineHeight = 18.sp
                 ),
-                color = TextDark.copy(alpha = 0.8f)
+                color = secondaryTextColor()
             )
         }
 
@@ -201,14 +206,14 @@ private fun NoteRow(
             Text(
                 text = dateTimeText,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = TextGrey
+                color = secondaryTextColor()
             )
             if (!note.language.isNullOrBlank()) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = note.language,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextGrey
+                    color = secondaryTextColor()
                 )
             }
         }
