@@ -50,6 +50,7 @@ import com.desk.moodboard.ui.theme.secondaryTextColor
 
 @Composable
 fun DeskDevicePicker(
+    title: String,
     devices: List<DeskBleDevice>,
     isScanning: Boolean,
     selectedDeviceAddress: String?,
@@ -71,7 +72,7 @@ fun DeskDevicePicker(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Select Desk", color = primaryTextColor())
+                Text(title, color = primaryTextColor())
                 if (isScanning) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),

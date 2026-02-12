@@ -5,6 +5,7 @@ import com.desk.moodboard.data.local.TodoDatabase
 import com.desk.moodboard.data.ble.DeskBleClient
 import com.desk.moodboard.data.ble.DeskBleConfigLoader
 import com.desk.moodboard.data.ble.DeskBleRepository
+import com.desk.moodboard.data.ble.RemoteBleRepository
 import com.desk.moodboard.data.preferences.UserPreferences
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
@@ -22,6 +23,7 @@ import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
@@ -49,8 +51,10 @@ val appModule = module {
         VolcengineASRService(appid, token, resourceId)
     }
     single { DeskBleConfigLoader(androidContext(), "desk_ble_config.json") }
-    single { DeskBleClient(androidContext()) }
-    single { DeskBleRepository(get(), get()) }
+    single(named("deskBleClient")) { DeskBleClient(androidContext()) }
+    single(named("remoteBleClient")) { DeskBleClient(androidContext()) }
+    single { DeskBleRepository(get(), get(named("deskBleClient"))) }
+    single { RemoteBleRepository(get(named("remoteBleClient"))) }
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
     single { UserPreferences(androidContext()) }
@@ -58,7 +62,7 @@ val appModule = module {
     viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { DeskControlViewModel(get()) }
+    viewModel { DeskControlViewModel(get(), get()) }
     viewModel { SettingsViewModel(get()) }
 }
 

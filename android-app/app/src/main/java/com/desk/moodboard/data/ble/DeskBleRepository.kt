@@ -36,7 +36,8 @@ class DeskBleRepository(
 
     fun startScan(): Result<Unit> {
         Log.d(Tag, "startScan requested")
-        return client.startScan().onFailure { error ->
+        val serviceUuid = _config.value?.serviceUuid
+        return client.startScan(serviceUuid = serviceUuid).onFailure { error ->
             _connectionState.value = DeskConnectionState.Error(mapError(error))
         }
     }

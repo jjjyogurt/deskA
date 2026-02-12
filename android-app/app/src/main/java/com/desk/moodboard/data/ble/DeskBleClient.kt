@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.ParcelUuid
 import android.os.SystemClock
 import android.util.Log
 import java.util.UUID
@@ -56,7 +57,10 @@ class DeskBleClient(
     private val _events = MutableSharedFlow<DeskBleClientEvent>(extraBufferCapacity = 64)
     val events = _events.asSharedFlow()
 
-    fun startScan(): Result<Unit> {
+    fun startScan(
+        serviceUuid: UUID? = null,
+        deviceNamePrefix: String? = null,
+    ): Result<Unit> {
         return runCatching {
             Log.d(Tag, "startScan() called")
             val adapter = bluetoothAdapter ?: throw DeskBleClientException("Bluetooth adapter unavailable.")
@@ -76,7 +80,7 @@ class DeskBleClient(
             scanResultsByAddress = emptyMap()
             _scanResults.value = emptyList()
             val settings = buildScanSettings()
-            val filters = emptyList<ScanFilter>()
+            val filters = buildScanFilters(serviceUuid = serviceUuid, deviceNamePrefix = deviceNamePrefix)
             bleScanner.startScan(filters, settings, callback)
             Log.d(Tag, "BLE scan started")
             _events.tryEmit(DeskBleClientEvent.ScanStarted)
@@ -102,12 +106,20 @@ class DeskBleClient(
         }
     }
 
-    fun connect(address: String): Result<Unit> {
+    fun connect(
+        address: String,
+        forceLeTransport: Boolean = false,
+    ): Result<Unit> {
         return runCatching {
             val adapter = bluetoothAdapter ?: throw DeskBleClientException("Bluetooth adapter unavailable.")
             val device = adapter.getRemoteDevice(address)
+            Log.d(Tag, "connect address=$address forceLeTransport=$forceLeTransport")
             bluetoothGatt?.close()
-            bluetoothGatt = device.connectGatt(context, false, gattCallback)
+            bluetoothGatt = if (forceLeTransport) {
+                device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            } else {
+                device.connectGatt(context, false, gattCallback)
+            }
         }
     }
 
@@ -250,9 +262,28 @@ class DeskBleClient(
     private fun buildScanSettings(): ScanSettings {
         return ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
             .setReportDelay(ScanReportDelayMs)
             .build()
+    }
+
+    private fun buildScanFilters(
+        serviceUuid: UUID?,
+        deviceNamePrefix: String?,
+    ): List<ScanFilter> {
+        val hasServiceUuid = serviceUuid != null
+        val hasNamePrefix = !deviceNamePrefix.isNullOrBlank()
+        if (!hasServiceUuid && !hasNamePrefix) {
+            return emptyList()
+        }
+        val builder = ScanFilter.Builder()
+        if (serviceUuid != null) {
+            builder.setServiceUuid(ParcelUuid(serviceUuid))
+        }
+        if (!deviceNamePrefix.isNullOrBlank()) {
+            builder.setDeviceName(deviceNamePrefix)
+        }
+        return listOf(builder.build())
     }
 
     private val gattCallback = object : BluetoothGattCallback() {

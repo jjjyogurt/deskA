@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -57,17 +58,16 @@ import com.desk.moodboard.ui.theme.appSurfaceColor
 import com.desk.moodboard.ui.theme.eInkTextColorOr
 import com.desk.moodboard.ui.theme.primaryTextColor
 import com.desk.moodboard.ui.theme.secondaryTextColor
-import kotlinx.coroutines.delay
 
 @Composable
 fun DeskControlCard(viewModel: DeskControlViewModel) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var showDevicePicker by remember { mutableStateOf(false) }
+    var showDeskDevicePicker by remember { mutableStateOf(false) }
+    var showRemoteDevicePicker by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
-    var showDisconnectDialog by remember { mutableStateOf(false) }
-    var hasEverSelected by remember { mutableStateOf(false) }
-    var showSelectionHighlight by remember { mutableStateOf(false) }
+    var showDeskDisconnectDialog by remember { mutableStateOf(false) }
+    var showRemoteDisconnectDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -75,11 +75,12 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
         val hasScanPermission = hasScanPermission(results, context)
         val hasConnectPermission = hasConnectPermission(results, context)
         val hasLocationPermission = hasLocationPermission(results, context)
-        viewModel.updatePermissions(hasScanPermission, hasConnectPermission, hasLocationPermission)
-        if (hasScanPermission && hasConnectPermission && hasLocationPermission) {
-            viewModel.startScan()
-            showDevicePicker = true
-        } else {
+        viewModel.updatePermissions(
+            hasScanPermission = hasScanPermission,
+            hasConnectPermission = hasConnectPermission,
+            hasLocationPermission = hasLocationPermission,
+        )
+        if (!(hasScanPermission && hasConnectPermission && hasLocationPermission)) {
             showPermissionDialog = true
         }
     }
@@ -98,16 +99,6 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
         viewModel.updateBluetoothEnabled(enabled)
     }
 
-    LaunchedEffect(uiState.selectedDevice?.address) {
-        val selectedAddress = uiState.selectedDevice?.address
-        if (!hasEverSelected && selectedAddress != null) {
-            hasEverSelected = true
-            showSelectionHighlight = true
-            delay(1200)
-            showSelectionHighlight = false
-        }
-    }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Dimens.cardCorner),
@@ -122,10 +113,11 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                     RoundedCornerShape(Dimens.cardCorner)
                 )
-                .padding(Dimens.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = Dimens.cardPadding, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val isConnected = uiState.connectionState is DeskConnectionState.Connected
+            val isDeskConnected = uiState.connectionState is DeskConnectionState.Connected
+            val isRemoteConnected = uiState.remoteConnectionState is DeskConnectionState.Connected
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -137,62 +129,94 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     color = primaryTextColor(),
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    StatusChip(
-                        text = connectionLabel(uiState.connectionState),
-                        onClick = if (isConnected) {
-                            { showDisconnectDialog = true }
-                        } else {
-                            null
-                        },
-                    )
-                }
+                StatusChip(
+                    text = "Desk: ${connectionLabel(uiState.connectionState)}",
+                    onClick = if (isDeskConnected) {
+                        { showDeskDisconnectDialog = true }
+                    } else {
+                        null
+                    },
+                )
             }
 
-            if (!isConnected) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusChip(
+                    text = "Remote: ${connectionLabel(uiState.remoteConnectionState)}",
+                    onClick = if (isRemoteConnected) {
+                        { showRemoteDisconnectDialog = true }
+                    } else {
+                        null
+                    },
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Button(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                     onClick = {
-                        Log.d("DeskControlCard", "Select Device clicked")
-                        showDevicePicker = true
                         if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
-                            Log.d("DeskControlCard", "Permissions OK -> startScan")
-                            viewModel.startScan()
+                            showDeskDevicePicker = true
+                            viewModel.startDeskScan()
                         } else {
-                            Log.d("DeskControlCard", "Permissions missing -> request")
                             permissionLauncher.launch(requiredPermissions())
                             showPermissionDialog = true
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
                     shape = RoundedCornerShape(8.dp),
                 ) {
                     Text(
-                        text = if (uiState.isScanning) "Scanning..." else "Select Device",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
+                        text = if (uiState.isScanning) "Scanning Desk..." else "Connect Desk",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 9.sp),
+                    )
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
+                            showRemoteDevicePicker = true
+                            viewModel.startRemoteScan()
+                        } else {
+                            permissionLauncher.launch(requiredPermissions())
+                            showPermissionDialog = true
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        text = if (uiState.isRemoteScanning) "Scanning Remote..." else "Connect Remote",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 9.sp),
                     )
                 }
             }
 
             uiState.selectedDevice?.let { device ->
-                val highlightModifier = if (showSelectionHighlight) {
-                    Modifier
-                        .background(AccentOrange.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                } else {
-                    Modifier
-                }
-                Box(modifier = highlightModifier) {
-                    Text(
-                        text = "Selected: ${device.name ?: device.address}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = secondaryTextColor(),
-                    )
-                }
+                Text(
+                    text = "Desk: ${device.name ?: device.address}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            uiState.selectedRemoteDevice?.let { device ->
+                Text(
+                    text = "Remote: ${device.name ?: device.address}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
 
             val currentError = uiState.error
@@ -204,50 +228,59 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                 )
             }
 
-            Text(
-                text = "Hold to move",
-                style = MaterialTheme.typography.labelSmall,
-                color = secondaryTextColor(),
-            )
+            if (isDeskConnected) {
+                Text(
+                    text = "Hold to move",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
+                )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                HoldCommandButton(
-                    label = "Up",
-                    enabled = isConnected,
-                    onPress = { viewModel.startContinuousCommand(DeskCommand.Up) },
-                    onRelease = { viewModel.stopContinuousCommand() },
-                )
-                HoldCommandButton(
-                    label = "Down",
-                    enabled = isConnected,
-                    onPress = { viewModel.startContinuousCommand(DeskCommand.Down) },
-                    onRelease = { viewModel.stopContinuousCommand() },
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    HoldCommandButton(
+                        label = "Up",
+                        enabled = true,
+                        onPress = { viewModel.startContinuousCommand(DeskCommand.Up) },
+                        onRelease = { viewModel.stopContinuousCommand() },
+                    )
+                    HoldCommandButton(
+                        label = "Down",
+                        enabled = true,
+                        onPress = { viewModel.startContinuousCommand(DeskCommand.Down) },
+                        onRelease = { viewModel.stopContinuousCommand() },
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    CommandButton("Memory 1", enabled = true) {
+                        viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.One))
+                    }
+                    CommandButton("Memory 2", enabled = true) {
+                        viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Two))
+                    }
+                    CommandButton("Memory 3", enabled = true) {
+                        viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Three))
+                    }
+                }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CommandButton("Memory 1", enabled = isConnected) {
-                    viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.One))
-                }
-                CommandButton("Memory 2", enabled = isConnected) {
-                    viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Two))
-                }
-                CommandButton("Memory 3", enabled = isConnected) {
-                    viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Three))
-                }
+            if (!isDeskConnected) {
+                Text(
+                    text = "Connect desk to enable movement controls.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = secondaryTextColor(),
+                )
             }
         }
     }
 
-    if (showDisconnectDialog) {
+    if (showDeskDisconnectDialog) {
         AlertDialog(
-            onDismissRequest = { showDisconnectDialog = false },
+            onDismissRequest = { showDeskDisconnectDialog = false },
             title = { Text("Disconnect Desk", color = primaryTextColor()) },
             text = {
                 Text(
@@ -258,35 +291,91 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.disconnect()
-                    showDisconnectDialog = false
-                    showDevicePicker = true
+                    viewModel.disconnectDesk()
+                    showDeskDisconnectDialog = false
                 }) {
                     Text("Disconnect", color = eInkTextColorOr(Color.Red))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDisconnectDialog = false }) {
+                TextButton(onClick = { showDeskDisconnectDialog = false }) {
                     Text("Cancel")
                 }
             },
         )
     }
 
-    if (showDevicePicker) {
+    if (showRemoteDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoteDisconnectDialog = false },
+            title = { Text("Disconnect Remote", color = primaryTextColor()) },
+            text = {
+                Text(
+                    "Are you sure you want to disconnect from the remote?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryTextColor(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.disconnectRemote()
+                    showRemoteDisconnectDialog = false
+                }) {
+                    Text("Disconnect", color = eInkTextColorOr(Color.Red))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoteDisconnectDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    if (showDeskDevicePicker) {
         DeskDevicePicker(
+            title = "Select Desk",
             devices = uiState.devices,
             isScanning = uiState.isScanning,
             selectedDeviceAddress = uiState.selectedDevice?.address,
-            onDismiss = { showDevicePicker = false },
+            onDismiss = {
+                viewModel.stopDeskScan()
+                showDeskDevicePicker = false
+            },
             onSelectDevice = { device ->
-                viewModel.selectDevice(device)
-                viewModel.connectSelectedDevice()
-                showDevicePicker = false
+                viewModel.selectDeskDevice(device)
+                viewModel.connectSelectedDeskDevice()
+                showDeskDevicePicker = false
             },
             onRescan = {
                 if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
-                    viewModel.startScan()
+                    viewModel.startDeskScan()
+                } else {
+                    permissionLauncher.launch(requiredPermissions())
+                    showPermissionDialog = true
+                }
+            },
+        )
+    }
+
+    if (showRemoteDevicePicker) {
+        DeskDevicePicker(
+            title = "Select Remote",
+            devices = uiState.remoteDevices,
+            isScanning = uiState.isRemoteScanning,
+            selectedDeviceAddress = uiState.selectedRemoteDevice?.address,
+            onDismiss = {
+                viewModel.stopRemoteScan()
+                showRemoteDevicePicker = false
+            },
+            onSelectDevice = { device ->
+                viewModel.selectRemoteDevice(device)
+                viewModel.connectSelectedRemoteDevice()
+                showRemoteDevicePicker = false
+            },
+            onRescan = {
+                if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
+                    viewModel.startRemoteScan()
                 } else {
                     permissionLauncher.launch(requiredPermissions())
                     showPermissionDialog = true
@@ -348,6 +437,8 @@ private fun StatusChip(
             text = text,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
             color = secondaryTextColor(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
