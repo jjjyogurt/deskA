@@ -7,31 +7,33 @@ import androidx.lifecycle.viewModelScope
 import com.desk.moodboard.data.ble.DeskBleDevice
 import com.desk.moodboard.data.ble.DeskBleRepository
 import com.desk.moodboard.data.ble.RemoteBleRepository
+import com.desk.moodboard.data.ble.RemoteBleBridgeServer
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class DeskControlViewModel(
     private val deskRepository: DeskBleRepository,
     private val remoteRepository: RemoteBleRepository,
+    private val remoteBridgeServer: RemoteBleBridgeServer,
 ) : ViewModel() {
     private companion object {
         private const val Tag = "DeskControlVM"
-        private const val HoldCommandIntervalMs = 150L
-        private const val StopDebounceMs = 120L
+    }
+    private enum class MotionState {
+        Idle,
+        Up,
+        Down,
     }
 
     private val _uiState = MutableStateFlow(DeskControlUiState())
     val uiState: StateFlow<DeskControlUiState> = _uiState
-    private var activeCommandJob: Job? = null
+    private var motionState: MotionState = MotionState.Idle
 
     init {
         viewModelScope.launch {
@@ -42,7 +44,7 @@ class DeskControlViewModel(
                     error = (state as? DeskConnectionState.Error)?.error,
                 )
                 if (state is DeskConnectionState.Disconnected || state is DeskConnectionState.Error) {
-                    cancelContinuousCommand()
+                    motionState = MotionState.Idle
                 }
             }
         }
@@ -65,22 +67,35 @@ class DeskControlViewModel(
                 _uiState.value = _uiState.value.copy(remoteDevices = devices)
             }
         }
+        viewModelScope.launch {
+            remoteRepository.remoteCommands.collect { command ->
+                if (!isDeskConnected()) {
+                    Log.w(Tag, "Remote command dropped because desk is not connected: $command")
+                    return@collect
+                }
+                applyRemoteMotionCommand(command)
+            }
+        }
     }
 
     fun updatePermissions(
         hasScanPermission: Boolean,
         hasConnectPermission: Boolean,
+        hasAdvertisePermission: Boolean,
         hasLocationPermission: Boolean,
     ) {
         _uiState.value = _uiState.value.copy(
             hasScanPermission = hasScanPermission,
             hasConnectPermission = hasConnectPermission,
+            hasAdvertisePermission = hasAdvertisePermission,
             hasLocationPermission = hasLocationPermission,
         )
+        syncRemoteBridgeState()
     }
 
     fun updateBluetoothEnabled(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(isBluetoothEnabled = enabled)
+        syncRemoteBridgeState()
     }
 
     fun startDeskScan() {
@@ -213,28 +228,21 @@ class DeskControlViewModel(
         }
     }
 
-    fun startContinuousCommand(command: DeskCommand) {
-        Log.d(Tag, "startContinuousCommand command=$command")
-        cancelContinuousCommand()
-        activeCommandJob = viewModelScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                deskRepository.sendCommand(command).onFailure { error ->
-                    _uiState.value = _uiState.value.copy(error = DeskError.Unknown(error.message ?: "Command failed"))
-                }
-                delay(HoldCommandIntervalMs)
-            }
+    fun toggleMotion(command: DeskCommand) {
+        val targetState = when (command) {
+            DeskCommand.Up -> MotionState.Up
+            DeskCommand.Down -> MotionState.Down
+            else -> return
         }
-    }
-
-    fun stopContinuousCommand() {
-        Log.d(Tag, "stopContinuousCommand")
-        cancelContinuousCommand()
+        val commandToSend = if (motionState == targetState) {
+            motionState = MotionState.Idle
+            DeskCommand.Stop
+        } else {
+            motionState = targetState
+            command
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            delay(StopDebounceMs)
-            if (!isDeskConnected()) {
-                return@launch
-            }
-            deskRepository.sendCommand(DeskCommand.Stop).onFailure { error ->
+            deskRepository.sendCommand(commandToSend).onFailure { error ->
                 _uiState.value = _uiState.value.copy(error = DeskError.Unknown(error.message ?: "Command failed"))
             }
         }
@@ -242,11 +250,6 @@ class DeskControlViewModel(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
-    }
-
-    private fun cancelContinuousCommand() {
-        activeCommandJob?.cancel()
-        activeCommandJob = null
     }
 
     private fun canScan(): Boolean {
@@ -258,8 +261,40 @@ class DeskControlViewModel(
         return _uiState.value.connectionState is DeskConnectionState.Connected
     }
 
+    private fun syncRemoteBridgeState() {
+        val state = _uiState.value
+        val shouldRunBridge =
+            state.isBluetoothEnabled && state.hasConnectPermission && state.hasAdvertisePermission
+        if (shouldRunBridge) {
+            remoteBridgeServer.start()
+        } else {
+            remoteBridgeServer.stop()
+        }
+    }
+
+    private fun applyRemoteMotionCommand(command: DeskCommand) {
+        when (command) {
+            DeskCommand.Up -> {
+                motionState = MotionState.Up
+                sendCommand(DeskCommand.Up)
+            }
+            DeskCommand.Down -> {
+                motionState = MotionState.Down
+                sendCommand(DeskCommand.Down)
+            }
+            DeskCommand.Stop -> {
+                motionState = MotionState.Idle
+                sendCommand(DeskCommand.Stop)
+            }
+            is DeskCommand.Memory -> {
+                // Remote bridge only forwards motion commands.
+            }
+        }
+    }
+
     override fun onCleared() {
-        cancelContinuousCommand()
+        motionState = MotionState.Idle
+        remoteBridgeServer.stop()
         deskRepository.disconnect()
         remoteRepository.disconnect()
         super.onCleared()

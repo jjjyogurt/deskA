@@ -29,8 +29,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.collectAsState
-import android.util.Log
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
@@ -74,13 +71,15 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
     ) { results ->
         val hasScanPermission = hasScanPermission(results, context)
         val hasConnectPermission = hasConnectPermission(results, context)
+        val hasAdvertisePermission = hasAdvertisePermission(results, context)
         val hasLocationPermission = hasLocationPermission(results, context)
         viewModel.updatePermissions(
             hasScanPermission = hasScanPermission,
             hasConnectPermission = hasConnectPermission,
+            hasAdvertisePermission = hasAdvertisePermission,
             hasLocationPermission = hasLocationPermission,
         )
-        if (!(hasScanPermission && hasConnectPermission && hasLocationPermission)) {
+        if (!(hasScanPermission && hasConnectPermission && hasAdvertisePermission && hasLocationPermission)) {
             showPermissionDialog = true
         }
     }
@@ -89,6 +88,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
         viewModel.updatePermissions(
             hasScanPermission = hasScanPermission(emptyMap(), context),
             hasConnectPermission = hasConnectPermission(emptyMap(), context),
+            hasAdvertisePermission = hasAdvertisePermission(emptyMap(), context),
             hasLocationPermission = hasLocationPermission(emptyMap(), context),
         )
     }
@@ -230,7 +230,7 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
 
             if (isDeskConnected) {
                 Text(
-                    text = "Hold to move",
+                    text = "Tap to toggle movement",
                     style = MaterialTheme.typography.labelSmall,
                     color = secondaryTextColor(),
                 )
@@ -242,14 +242,12 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     HoldCommandButton(
                         label = "Up",
                         enabled = true,
-                        onPress = { viewModel.startContinuousCommand(DeskCommand.Up) },
-                        onRelease = { viewModel.stopContinuousCommand() },
+                        onClick = { viewModel.toggleMotion(DeskCommand.Up) },
                     )
                     HoldCommandButton(
                         label = "Down",
                         enabled = true,
-                        onPress = { viewModel.startContinuousCommand(DeskCommand.Down) },
-                        onRelease = { viewModel.stopContinuousCommand() },
+                        onClick = { viewModel.toggleMotion(DeskCommand.Down) },
                     )
                 }
 
@@ -465,34 +463,11 @@ private fun RowScope.CommandButton(
 private fun RowScope.HoldCommandButton(
     label: String,
     enabled: Boolean,
-    onPress: () -> Unit,
-    onRelease: () -> Unit,
+    onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    var wasPressed by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isPressed, enabled) {
-        if (!enabled) {
-            return@LaunchedEffect
-        }
-        if (isPressed == wasPressed) {
-            return@LaunchedEffect
-        }
-        wasPressed = isPressed
-        if (isPressed) {
-            Log.d("DeskControlCard", "HoldCommandButton pressed: $label")
-            onPress()
-        } else {
-            Log.d("DeskControlCard", "HoldCommandButton released: $label")
-            onRelease()
-        }
-    }
-
     Button(
         modifier = Modifier.weight(1f),
-        interactionSource = interactionSource,
-        onClick = {},
+        onClick = onClick,
         enabled = enabled,
         colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
@@ -528,6 +503,7 @@ private fun requiredPermissions(): Array<String> {
         arrayOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.BLUETOOTH_ADVERTISE,
             Manifest.permission.ACCESS_FINE_LOCATION,
         )
     } else {
@@ -558,6 +534,17 @@ private fun hasConnectPermission(
         results[Manifest.permission.BLUETOOTH_CONNECT] ?: hasPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
     } else {
         hasPermission(context, Manifest.permission.BLUETOOTH_ADMIN)
+    }
+}
+
+private fun hasAdvertisePermission(
+    results: Map<String, Boolean>,
+    context: android.content.Context,
+): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        results[Manifest.permission.BLUETOOTH_ADVERTISE] ?: hasPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE)
+    } else {
+        true
     }
 }
 

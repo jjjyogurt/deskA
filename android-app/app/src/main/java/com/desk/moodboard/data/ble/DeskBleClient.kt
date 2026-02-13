@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -28,7 +29,6 @@ class DeskBleClient(
 ) {
     private companion object {
         private const val Tag = "DeskBleClient"
-        private const val ScanReportDelayMs = 500L
         private const val ScanUiUpdateIntervalMs = 400L
     }
     private data class WriteRequest(
@@ -45,6 +45,7 @@ class DeskBleClient(
 
     private var bluetoothGatt: BluetoothGatt? = null
     private var activeScanCallback: ScanCallback? = null
+    private var activeScanDeviceNamePrefix: String? = null
     private var scanResultsByAddress: Map<String, DeskBleDevice> = emptyMap()
     private var lastScanUiUpdateMs = 0L
     private val writeQueue = ArrayDeque<WriteRequest>()
@@ -77,10 +78,11 @@ class DeskBleClient(
             }
             val callback = createScanCallback()
             activeScanCallback = callback
+            activeScanDeviceNamePrefix = deviceNamePrefix?.trim()?.takeIf { it.isNotEmpty() }
             scanResultsByAddress = emptyMap()
             _scanResults.value = emptyList()
             val settings = buildScanSettings()
-            val filters = buildScanFilters(serviceUuid = serviceUuid, deviceNamePrefix = deviceNamePrefix)
+            val filters = buildScanFilters(serviceUuid = serviceUuid)
             bleScanner.startScan(filters, settings, callback)
             Log.d(Tag, "BLE scan started")
             _events.tryEmit(DeskBleClientEvent.ScanStarted)
@@ -98,6 +100,7 @@ class DeskBleClient(
             }
             scanner?.stopScan(callback)
             activeScanCallback = null
+            activeScanDeviceNamePrefix = null
             Log.d(Tag, "BLE scan stopped")
             _events.tryEmit(DeskBleClientEvent.ScanStopped)
             Unit
@@ -144,6 +147,29 @@ class DeskBleClient(
                 gatt = gatt,
                 request = WriteRequest(serviceUuid, characteristicUuid, payload, writeType),
             )
+        }
+    }
+
+    fun enableNotifications(
+        serviceUuid: UUID,
+        characteristicUuid: UUID,
+    ): Result<Unit> {
+        return runCatching {
+            val gatt = bluetoothGatt ?: throw DeskBleClientException("Not connected to a device.")
+            val service = gatt.getService(serviceUuid)
+                ?: throw DeskBleClientException("Service not found.")
+            val characteristic = service.getCharacteristic(characteristicUuid)
+                ?: throw DeskBleClientException("Characteristic not found.")
+            val notificationEnabled = gatt.setCharacteristicNotification(characteristic, true)
+            if (!notificationEnabled) {
+                throw DeskBleClientException("Enabling characteristic notifications failed.")
+            }
+            val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+            val descriptor = characteristic.getDescriptor(cccdUuid)
+                ?: throw DeskBleClientException("CCCD descriptor missing.")
+            writeDescriptor(gatt, descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+            Log.d(Tag, "Notifications enabled for $characteristicUuid")
+            Unit
         }
     }
 
@@ -211,7 +237,7 @@ class DeskBleClient(
     }
 
     private fun handleScanResults(results: List<ScanResult>) {
-        val items = results.mapNotNull { toDeskBleDevice(it) }
+        val items = results.mapNotNull { toDeskBleDevice(it, activeScanDeviceNamePrefix) }
         if (items.isEmpty()) {
             return
         }
@@ -228,14 +254,21 @@ class DeskBleClient(
         }
     }
 
-    private fun toDeskBleDevice(result: ScanResult): DeskBleDevice? {
+    private fun toDeskBleDevice(
+        result: ScanResult,
+        deviceNamePrefix: String?,
+    ): DeskBleDevice? {
         if (isDebugLoggingEnabled()) {
             logScanResult(result)
         }
         val device = result.device ?: return null
         val recordName = result.scanRecord?.deviceName
+        val displayName = device.name ?: recordName
+        if (!matchesNamePrefix(displayName, deviceNamePrefix)) {
+            return null
+        }
         return DeskBleDevice(
-            name = device.name ?: recordName,
+            name = displayName,
             address = device.address,
             rssi = result.rssi,
         )
@@ -262,28 +295,34 @@ class DeskBleClient(
     private fun buildScanSettings(): ScanSettings {
         return ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
-            .setReportDelay(ScanReportDelayMs)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .setReportDelay(0L)
             .build()
     }
 
     private fun buildScanFilters(
         serviceUuid: UUID?,
-        deviceNamePrefix: String?,
     ): List<ScanFilter> {
-        val hasServiceUuid = serviceUuid != null
-        val hasNamePrefix = !deviceNamePrefix.isNullOrBlank()
-        if (!hasServiceUuid && !hasNamePrefix) {
+        if (serviceUuid == null) {
             return emptyList()
         }
         val builder = ScanFilter.Builder()
-        if (serviceUuid != null) {
-            builder.setServiceUuid(ParcelUuid(serviceUuid))
-        }
-        if (!deviceNamePrefix.isNullOrBlank()) {
-            builder.setDeviceName(deviceNamePrefix)
-        }
+        builder.setServiceUuid(ParcelUuid(serviceUuid))
         return listOf(builder.build())
+    }
+
+    private fun matchesNamePrefix(
+        name: String?,
+        deviceNamePrefix: String?,
+    ): Boolean {
+        if (deviceNamePrefix.isNullOrBlank()) {
+            return true
+        }
+        if (name.isNullOrBlank()) {
+            return false
+        }
+        // Treat this as a keyword filter so names like "ESP32_Desk_Sim" are included.
+        return name.contains(deviceNamePrefix, ignoreCase = true)
     }
 
     private val gattCallback = object : BluetoothGattCallback() {
@@ -343,6 +382,23 @@ class DeskBleClient(
                 }
             }
         }
+
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+        ) {
+            val payload = characteristic.value?.copyOf() ?: byteArrayOf()
+            Log.d(
+                Tag,
+                "Characteristic notified uuid=${characteristic.uuid} bytes=${payload.size}"
+            )
+            _events.tryEmit(
+                DeskBleClientEvent.CharacteristicNotified(
+                    characteristicUuid = characteristic.uuid,
+                    payload = payload,
+                )
+            )
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -359,6 +415,19 @@ class DeskBleClient(
             throw DeskBleClientException("Characteristic write could not be initiated.")
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun writeDescriptor(
+        gatt: BluetoothGatt,
+        descriptor: BluetoothGattDescriptor,
+        payload: ByteArray,
+    ) {
+        descriptor.value = payload
+        val initiated = gatt.writeDescriptor(descriptor)
+        if (!initiated) {
+            throw DeskBleClientException("Descriptor write could not be initiated.")
+        }
+    }
 }
 
 sealed class DeskBleClientEvent {
@@ -369,6 +438,10 @@ sealed class DeskBleClientEvent {
     data object Disconnected : DeskBleClientEvent()
     data class ServicesDiscovered(val services: List<BluetoothGattService>) : DeskBleClientEvent()
     data object CommandWritten : DeskBleClientEvent()
+    data class CharacteristicNotified(
+        val characteristicUuid: UUID,
+        val payload: ByteArray,
+    ) : DeskBleClientEvent()
     data class Error(val message: String) : DeskBleClientEvent()
 }
 

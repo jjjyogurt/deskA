@@ -1,12 +1,15 @@
 package com.desk.moodboard.data.ble
 
 import android.util.Log
+import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -17,11 +20,13 @@ class RemoteBleRepository(
 ) {
     private companion object {
         private const val Tag = "RemoteBleRepository"
-        private const val RemoteDeviceName = "ESP32S3_REMOTE"
+        private const val RemoteDeviceName = "ESP32S3_Remote_Desk"
     }
 
     private val _connectionState = MutableStateFlow<DeskConnectionState>(DeskConnectionState.Disconnected)
     val connectionState = _connectionState.asStateFlow()
+    private val _remoteCommands = MutableSharedFlow<DeskCommand>(extraBufferCapacity = 16)
+    val remoteCommands = _remoteCommands.asSharedFlow()
 
     val scanResults = client.scanResults
 
@@ -31,7 +36,10 @@ class RemoteBleRepository(
 
     fun startScan(): Result<Unit> {
         Log.d(Tag, "startScan requested")
-        return client.startScan(deviceNamePrefix = RemoteDeviceName).onFailure { error ->
+        return client.startScan(
+            serviceUuid = BridgeServiceUuid,
+            deviceNamePrefix = RemoteDeviceName,
+        ).onFailure { error ->
             _connectionState.value = DeskConnectionState.Error(mapError(error))
         }
     }
@@ -77,15 +85,42 @@ class RemoteBleRepository(
                     DeskBleClientEvent.Disconnected -> {
                         _connectionState.value = DeskConnectionState.Disconnected
                     }
-                    is DeskBleClientEvent.ServicesDiscovered,
+                    is DeskBleClientEvent.ServicesDiscovered -> {
+                        client.enableNotifications(
+                            serviceUuid = BridgeServiceUuid,
+                            characteristicUuid = BridgeCommandCharacteristicUuid,
+                        ).onFailure { error ->
+                            _connectionState.value = DeskConnectionState.Error(mapError(error))
+                        }
+                    }
                     DeskBleClientEvent.CommandWritten,
                     is DeskBleClientEvent.DeviceFound -> {
                         // No-op for remote connection tracking.
+                    }
+                    is DeskBleClientEvent.CharacteristicNotified -> {
+                        if (event.characteristicUuid != BridgeCommandCharacteristicUuid || event.payload.isEmpty()) {
+                            return@collect
+                        }
+                        mapRemoteCommand(event.payload.first().toInt() and 0xFF)?.let { command ->
+                            _remoteCommands.tryEmit(command)
+                        }
                     }
                     is DeskBleClientEvent.Error -> {
                         _connectionState.value = DeskConnectionState.Error(DeskError.GattError(event.message))
                     }
                 }
+            }
+        }
+    }
+
+    private fun mapRemoteCommand(command: Int): DeskCommand? {
+        return when (command) {
+            0x00 -> DeskCommand.Stop
+            0x01 -> DeskCommand.Up
+            0x02 -> DeskCommand.Down
+            else -> {
+                Log.w(Tag, "Ignoring unknown remote command byte=0x${"%02X".format(command)}")
+                null
             }
         }
     }

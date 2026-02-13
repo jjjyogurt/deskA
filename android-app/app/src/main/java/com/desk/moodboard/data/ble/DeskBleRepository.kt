@@ -21,6 +21,7 @@ class DeskBleRepository(
 ) {
     private companion object {
         private const val Tag = "DeskBleRepository"
+        private const val DeskDeviceNameKeyword = "Desk"
     }
     private val _connectionState = MutableStateFlow<DeskConnectionState>(DeskConnectionState.Disconnected)
     val connectionState = _connectionState.asStateFlow()
@@ -37,7 +38,10 @@ class DeskBleRepository(
     fun startScan(): Result<Unit> {
         Log.d(Tag, "startScan requested")
         val serviceUuid = _config.value?.serviceUuid
-        return client.startScan(serviceUuid = serviceUuid).onFailure { error ->
+        return client.startScan(
+            serviceUuid = serviceUuid,
+            deviceNamePrefix = DeskDeviceNameKeyword,
+        ).onFailure { error ->
             _connectionState.value = DeskConnectionState.Error(mapError(error))
         }
     }
@@ -130,6 +134,9 @@ class DeskBleRepository(
                     }
                     is DeskBleClientEvent.DeviceFound -> {
                         // scanResults flow already updated by client.
+                    }
+                    is DeskBleClientEvent.CharacteristicNotified -> {
+                        // Remote notification path is handled by RemoteBleRepository.
                     }
                     is DeskBleClientEvent.Error -> {
                         _connectionState.value = DeskConnectionState.Error(DeskError.GattError(event.message))

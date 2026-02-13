@@ -15,6 +15,7 @@ data class DeskControlUiState(
     val isRemoteScanning: Boolean = false,
     val hasScanPermission: Boolean = true,
     val hasConnectPermission: Boolean = true,
+    val hasAdvertisePermission: Boolean = true,
     val hasLocationPermission: Boolean = true,
     val isBluetoothEnabled: Boolean = true,
     val error: DeskError? = null,

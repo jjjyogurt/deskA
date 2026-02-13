@@ -5,6 +5,7 @@ import com.desk.moodboard.data.local.TodoDatabase
 import com.desk.moodboard.data.ble.DeskBleClient
 import com.desk.moodboard.data.ble.DeskBleConfigLoader
 import com.desk.moodboard.data.ble.DeskBleRepository
+import com.desk.moodboard.data.ble.RemoteBleBridgeServer
 import com.desk.moodboard.data.ble.RemoteBleRepository
 import com.desk.moodboard.data.preferences.UserPreferences
 import com.desk.moodboard.data.remote.DoubaoService
@@ -55,6 +56,7 @@ val appModule = module {
     single(named("remoteBleClient")) { DeskBleClient(androidContext()) }
     single { DeskBleRepository(get(), get(named("deskBleClient"))) }
     single { RemoteBleRepository(get(named("remoteBleClient"))) }
+    single { RemoteBleBridgeServer(androidContext(), get()) }
     single { ConflictDetector() }
     single { CalendarViewModel(get()) }
     single { UserPreferences(androidContext()) }
@@ -62,7 +64,7 @@ val appModule = module {
     viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { DeskControlViewModel(get(), get()) }
+    viewModel { DeskControlViewModel(get(), get(), get()) }
     viewModel { SettingsViewModel(get()) }
 }
 
