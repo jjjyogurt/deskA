@@ -1,5 +1,6 @@
 package com.desk.moodboard.ui.assistant
 
+import com.desk.moodboard.data.ble.RemoteBleRepository
 import com.desk.moodboard.data.model.ChatMessage
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
@@ -27,7 +28,8 @@ class AssistantViewModel(
     audioRecorder: AudioRecorder,
     volcengineASRService: VolcengineASRService,
     conflictDetector: ConflictDetector,
-    calendarViewModel: CalendarViewModel
+    calendarViewModel: CalendarViewModel,
+    remoteBleRepository: RemoteBleRepository,
 ) : VoiceAgentViewModel(
     doubaoService = doubaoService,
     todoRepository = todoRepository,
@@ -36,5 +38,6 @@ class AssistantViewModel(
     audioRecorder = audioRecorder,
     volcengineASRService = volcengineASRService,
     conflictDetector = conflictDetector,
-    calendarViewModel = calendarViewModel
+    calendarViewModel = calendarViewModel,
+    remoteBleRepository = remoteBleRepository,
 )

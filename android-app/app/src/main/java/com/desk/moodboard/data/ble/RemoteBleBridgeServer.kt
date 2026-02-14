@@ -226,3 +226,4 @@ class RemoteBleBridgeServer(
 
 val BridgeServiceUuid: UUID = UUID.fromString("c1f0d8a0-8b1b-4c0b-9e1c-2c1f7f2b2c11")
 val BridgeCommandCharacteristicUuid: UUID = UUID.fromString("c1f0d8a1-8b1b-4c0b-9e1c-2c1f7f2b2c11")
+val BridgeAudioCharacteristicUuid: UUID = UUID.fromString("c1f0d8a2-8b1b-4c0b-9e1c-2c1f7f2b2c11")

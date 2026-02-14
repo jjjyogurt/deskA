@@ -173,6 +173,16 @@ class DeskBleClient(
         }
     }
 
+    fun requestMtu(mtu: Int): Result<Unit> {
+        return runCatching {
+            val gatt = bluetoothGatt ?: throw DeskBleClientException("Not connected to a device.")
+            if (!gatt.requestMtu(mtu)) {
+                throw DeskBleClientException("MTU request could not be initiated.")
+            }
+            Log.d(Tag, "MTU request initiated target=$mtu")
+        }
+    }
+
     private fun enqueueWrite(
         gatt: BluetoothGatt,
         request: WriteRequest,
@@ -399,6 +409,33 @@ class DeskBleClient(
                 )
             )
         }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int,
+        ) {
+            val characteristicUuid = descriptor.characteristic?.uuid
+            Log.d(
+                Tag,
+                "Descriptor write completed characteristic=$characteristicUuid status=$status"
+            )
+            if (characteristicUuid != null) {
+                _events.tryEmit(
+                    DeskBleClientEvent.DescriptorWritten(
+                        characteristicUuid = characteristicUuid,
+                        status = status,
+                    )
+                )
+            } else {
+                _events.tryEmit(DeskBleClientEvent.Error("Descriptor write completed with missing characteristic UUID"))
+            }
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+            Log.d(Tag, "MTU changed mtu=$mtu status=$status")
+            _events.tryEmit(DeskBleClientEvent.MtuChanged(mtu = mtu, status = status))
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -441,6 +478,14 @@ sealed class DeskBleClientEvent {
     data class CharacteristicNotified(
         val characteristicUuid: UUID,
         val payload: ByteArray,
+    ) : DeskBleClientEvent()
+    data class DescriptorWritten(
+        val characteristicUuid: UUID,
+        val status: Int,
+    ) : DeskBleClientEvent()
+    data class MtuChanged(
+        val mtu: Int,
+        val status: Int,
     ) : DeskBleClientEvent()
     data class Error(val message: String) : DeskBleClientEvent()
 }

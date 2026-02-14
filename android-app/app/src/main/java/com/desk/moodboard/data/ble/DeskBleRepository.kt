@@ -138,6 +138,12 @@ class DeskBleRepository(
                     is DeskBleClientEvent.CharacteristicNotified -> {
                         // Remote notification path is handled by RemoteBleRepository.
                     }
+                    is DeskBleClientEvent.DescriptorWritten -> {
+                        // Notification descriptor setup is handled by RemoteBleRepository.
+                    }
+                    is DeskBleClientEvent.MtuChanged -> {
+                        Log.d(Tag, "MTU updated mtu=${event.mtu} status=${event.status}")
+                    }
                     is DeskBleClientEvent.Error -> {
                         _connectionState.value = DeskConnectionState.Error(DeskError.GattError(event.message))
                     }

@@ -254,11 +254,6 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                     values = listOf(0.65f, 0.72f, 0.68f, 0.78f, 0.82f, 0.75f, 0.88f),
                     labels = listOf("M", "T", "W", "T", "F", "S", "S"),
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Legend(color = AccentOrange, text = "Heal Score")
-                }
             }
         }
     }

@@ -10,6 +10,9 @@ import com.desk.moodboard.data.model.EventRequest
 import com.desk.moodboard.data.model.EventType
 import com.desk.moodboard.data.model.NoteRequest
 import com.desk.moodboard.data.model.TodoRequest
+import com.desk.moodboard.data.ble.RemoteAudioPacket
+import com.desk.moodboard.data.ble.RemoteBleRepository
+import com.desk.moodboard.data.ble.RemoteMicEvent
 import com.desk.moodboard.data.remote.DoubaoService
 import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.data.repository.NoteRepository
@@ -18,8 +21,11 @@ import com.desk.moodboard.domain.ConflictDetector
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -30,6 +36,8 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 open class VoiceAgentViewModel(
     private val doubaoService: DoubaoService?,
@@ -39,16 +47,30 @@ open class VoiceAgentViewModel(
     private val audioRecorder: AudioRecorder,
     private val volcengineASRService: VolcengineASRService,
     private val conflictDetector: ConflictDetector,
-    private val calendarViewModel: CalendarViewModel
+    private val calendarViewModel: CalendarViewModel,
+    private val remoteBleRepository: RemoteBleRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AssistantUiState())
     val uiState: StateFlow<AssistantUiState> = _uiState
 
     private var asrInitialized = false
+    private val remoteMicLock = Any()
+    private var remoteSessionCounter = 0L
+    private var remoteSessionId = 0L
+    private var remoteSessionActive = false
+    private var remoteStopReceived = false
+    private var remoteLastPacketReceived = false
+    private var expectedPacketSequence = 0
+    private var missingPacketCount = 0
+    private var receivedPacketCount = 0
+    private var remotePcmBuffer = ByteArrayOutputStream()
+    private var remoteFinalizeTimeoutJob: Job? = null
 
     init {
         addMessage("Hi! How can I help?", false)
+        observeRemoteMicEvents()
+        observeRemoteAudioPackets()
     }
 
     fun onSendMessage(text: String) {
@@ -137,6 +159,218 @@ open class VoiceAgentViewModel(
 
             _uiState.value = _uiState.value.copy(isLoading = false)
         }
+    }
+
+    private fun observeRemoteMicEvents() {
+        viewModelScope.launch {
+            remoteBleRepository.remoteMicEvents.collect { event ->
+                when (event) {
+                    RemoteMicEvent.Started -> handleRemoteMicStarted()
+                    RemoteMicEvent.Stopped -> handleRemoteMicStopped()
+                }
+            }
+        }
+    }
+
+    private fun observeRemoteAudioPackets() {
+        viewModelScope.launch {
+            remoteBleRepository.remoteAudioPackets.collect { packet ->
+                handleRemoteAudioPacket(packet)
+            }
+        }
+    }
+
+    private fun handleRemoteMicStarted() {
+        val sessionId = synchronized(remoteMicLock) {
+            remoteSessionCounter += 1
+            remoteSessionId = remoteSessionCounter
+            remoteSessionActive = true
+            remoteStopReceived = false
+            remoteLastPacketReceived = false
+            expectedPacketSequence = 0
+            missingPacketCount = 0
+            receivedPacketCount = 0
+            remotePcmBuffer.reset()
+            remoteSessionId
+        }
+        remoteFinalizeTimeoutJob?.cancel()
+        remoteFinalizeTimeoutJob = null
+        Log.i("VoiceAgent", "Remote mic started session=$sessionId")
+        _uiState.value = _uiState.value.copy(isRecording = true, isLoading = false, currentTranscript = "")
+    }
+
+    private fun handleRemoteMicStopped() {
+        val shouldFinalizeNow = synchronized(remoteMicLock) {
+            if (!remoteSessionActive) {
+                Log.w("VoiceAgent", "Remote mic stop ignored: no active session")
+                return@synchronized false
+            }
+            remoteStopReceived = true
+            remoteLastPacketReceived
+        }
+        Log.i("VoiceAgent", "Remote mic stopped session=$remoteSessionId")
+        if (shouldFinalizeNow) {
+            finalizeRemoteSessionAndTranscribe()
+        } else {
+            _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
+            scheduleRemoteFinalizeFallback("STOP_EVENT")
+        }
+    }
+
+    private fun handleRemoteAudioPacket(packet: RemoteAudioPacket) {
+        var shouldFinalize = false
+        var shouldRescheduleFallback = false
+        synchronized(remoteMicLock) {
+            if (!remoteSessionActive) {
+                Log.w("VoiceAgent", "Dropping remote audio packet; no active session seq=${packet.sequence}")
+                return
+            }
+            if (packet.sequence < expectedPacketSequence) {
+                Log.w(
+                    "VoiceAgent",
+                    "Dropping out-of-order packet seq=${packet.sequence} expected=$expectedPacketSequence"
+                )
+                return
+            }
+            if (packet.sequence > expectedPacketSequence) {
+                missingPacketCount += packet.sequence - expectedPacketSequence
+            }
+            expectedPacketSequence = packet.sequence + 1
+            receivedPacketCount += 1
+            if (packet.pcmBytes.isNotEmpty()) {
+                remotePcmBuffer.write(packet.pcmBytes)
+            }
+            if (packet.isLast) {
+                remoteLastPacketReceived = true
+            }
+            shouldFinalize = remoteStopReceived && remoteLastPacketReceived
+            shouldRescheduleFallback = remoteStopReceived && !remoteLastPacketReceived
+        }
+        if (shouldRescheduleFallback) {
+            scheduleRemoteFinalizeFallback("POST_STOP_PACKET seq=${packet.sequence}")
+        }
+        if (shouldFinalize) {
+            finalizeRemoteSessionAndTranscribe()
+        }
+    }
+
+    private fun scheduleRemoteFinalizeFallback(reason: String) {
+        remoteFinalizeTimeoutJob?.cancel()
+        remoteFinalizeTimeoutJob = viewModelScope.launch {
+            delay(RemotePostStopIdleTimeoutMs)
+            val shouldFinalizeByTimeout = synchronized(remoteMicLock) {
+                remoteSessionActive && remoteStopReceived && !remoteLastPacketReceived
+            }
+            if (shouldFinalizeByTimeout) {
+                Log.w("VoiceAgent", "Remote session fallback finalize triggered reason=$reason")
+                finalizeRemoteSessionAndTranscribe()
+            }
+        }
+    }
+
+    private fun finalizeRemoteSessionAndTranscribe() {
+        remoteFinalizeTimeoutJob?.cancel()
+        remoteFinalizeTimeoutJob = null
+        val snapshot = synchronized(remoteMicLock) {
+            if (!remoteSessionActive) {
+                return
+            }
+            val bytes = remotePcmBuffer.toByteArray()
+            val packetCount = receivedPacketCount
+            val missingCount = missingPacketCount
+            val session = remoteSessionId
+            remoteSessionActive = false
+            remoteStopReceived = false
+            remoteLastPacketReceived = false
+            expectedPacketSequence = 0
+            missingPacketCount = 0
+            receivedPacketCount = 0
+            remotePcmBuffer = ByteArrayOutputStream()
+            RemoteSessionSnapshot(
+                sessionId = session,
+                pcmBytes = bytes,
+                packetCount = packetCount,
+                missingCount = missingCount,
+            )
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRecording = false, isLoading = true)
+            val estimatedDurationMs = estimatePcmDurationMs(snapshot.pcmBytes.size)
+            Log.i(
+                "VoiceAgent",
+                "Remote session finalized session=${snapshot.sessionId} packets=${snapshot.packetCount} " +
+                    "missing=${snapshot.missingCount} bytes=${snapshot.pcmBytes.size} " +
+                    "durationMs=$estimatedDurationMs"
+            )
+
+            if (snapshot.pcmBytes.isEmpty()) {
+                addMessage("Couldn't hear anything.", false)
+                _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
+                return@launch
+            }
+
+            val pcmSamples = toLittleEndianShortArray(snapshot.pcmBytes)
+            val diagnostics = buildPcmDiagnostics(pcmSamples)
+            Log.i(
+                "VoiceAgent",
+                "Remote audio diagnostics session=${snapshot.sessionId} samples=${pcmSamples.size} " +
+                    "rms=${diagnostics.rms} peak=${diagnostics.peak}"
+            )
+            val finalTranscript = withTimeoutOrNull(AsrTimeoutMs) {
+                volcengineASRService.transcribePcm(pcmSamples)
+            } ?: ""
+            _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
+
+            if (finalTranscript.isNotBlank()) {
+                addMessage(finalTranscript, true)
+                processTextInput(finalTranscript)
+            } else {
+                addMessage("Couldn't hear anything.", false)
+            }
+        }
+    }
+
+    private fun toLittleEndianShortArray(bytes: ByteArray): ShortArray {
+        if (bytes.size < 2) {
+            return ShortArray(0)
+        }
+        val sampleCount = bytes.size / 2
+        val output = ShortArray(sampleCount)
+        var offset = 0
+        for (index in 0 until sampleCount) {
+            val low = bytes[offset].toInt() and 0xFF
+            val high = bytes[offset + 1].toInt() and 0xFF
+            output[index] = ((high shl 8) or low).toShort()
+            offset += 2
+        }
+        return output
+    }
+
+    private fun estimatePcmDurationMs(byteCount: Int): Long {
+        val bytesPerSecond = RemoteAsrSampleRateHz * RemoteAsrChannelCount * RemoteAsrBytesPerSample
+        if (bytesPerSecond <= 0) {
+            return 0L
+        }
+        return (byteCount.toLong() * 1000L) / bytesPerSecond.toLong()
+    }
+
+    private fun buildPcmDiagnostics(samples: ShortArray): PcmDiagnostics {
+        if (samples.isEmpty()) {
+            return PcmDiagnostics(rms = 0.0, peak = 0)
+        }
+        var peak = 0
+        var sumSquares = 0.0
+        for (sample in samples) {
+            val value = sample.toInt()
+            val absolute = abs(value)
+            if (absolute > peak) {
+                peak = absolute
+            }
+            sumSquares += value.toDouble() * value.toDouble()
+        }
+        val rms = sqrt(sumSquares / samples.size.toDouble())
+        return PcmDiagnostics(rms = rms, peak = peak)
     }
 
     private fun handleEarlyIntent(text: String): Boolean {
@@ -346,6 +580,10 @@ open class VoiceAgentViewModel(
     companion object {
         private const val AsrTimeoutMs = 10000L
         private const val LlmTimeoutMs = 8000L
+        private const val RemotePostStopIdleTimeoutMs = 8000L
+        private const val RemoteAsrSampleRateHz = 16000
+        private const val RemoteAsrChannelCount = 1
+        private const val RemoteAsrBytesPerSample = 2
         private const val DefaultConflictWindowDays = 7
         private const val DefaultEventDurationMinutes = 60
         private const val MaxNoteTitleWords = 5
@@ -371,4 +609,16 @@ open class VoiceAgentViewModel(
         )
     }
 }
+
+private data class RemoteSessionSnapshot(
+    val sessionId: Long,
+    val pcmBytes: ByteArray,
+    val packetCount: Int,
+    val missingCount: Int,
+)
+
+private data class PcmDiagnostics(
+    val rms: Double,
+    val peak: Int,
+)
 

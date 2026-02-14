@@ -19,18 +19,27 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,13 +47,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.compose.runtime.collectAsState
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
 import com.desk.moodboard.domain.desk.DeskError
@@ -113,11 +122,13 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                     RoundedCornerShape(Dimens.cardCorner)
                 )
-                .padding(horizontal = Dimens.cardPadding, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = Dimens.cardPadding, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val isDeskConnected = uiState.connectionState is DeskConnectionState.Connected
             val isRemoteConnected = uiState.remoteConnectionState is DeskConnectionState.Connected
+
+            // Header with Title and Status Indicators
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -129,153 +140,96 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
                     color = primaryTextColor(),
                 )
 
-                StatusChip(
-                    text = "Desk: ${connectionLabel(uiState.connectionState)}",
-                    onClick = if (isDeskConnected) {
-                        { showDeskDisconnectDialog = true }
-                    } else {
-                        null
-                    },
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusChip(
-                    text = "Remote: ${connectionLabel(uiState.remoteConnectionState)}",
-                    onClick = if (isRemoteConnected) {
-                        { showRemoteDisconnectDialog = true }
-                    } else {
-                        null
-                    },
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
-                            showDeskDevicePicker = true
-                            viewModel.startDeskScan()
-                        } else {
-                            permissionLauncher.launch(requiredPermissions())
-                            showPermissionDialog = true
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ConnectionIndicator(
+                        label = "DESK",
+                        isConnected = isDeskConnected,
+                        onClick = {
+                            if (isDeskConnected) {
+                                showDeskDisconnectDialog = true
+                            } else {
+                                if (uiState.hasScanPermission && uiState.hasConnectPermission) {
+                                    showDeskDevicePicker = true
+                                    viewModel.startDeskScan()
+                                } else {
+                                    permissionLauncher.launch(requiredPermissions())
+                                }
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Text(
-                        text = if (uiState.isScanning) "Scanning Desk..." else "Connect Desk",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 9.sp),
                     )
-                }
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        if (uiState.hasScanPermission && uiState.hasConnectPermission && uiState.hasLocationPermission) {
-                            showRemoteDevicePicker = true
-                            viewModel.startRemoteScan()
-                        } else {
-                            permissionLauncher.launch(requiredPermissions())
-                            showPermissionDialog = true
+                    ConnectionIndicator(
+                        label = "REMOTE",
+                        isConnected = isRemoteConnected,
+                        onClick = {
+                            if (isRemoteConnected) {
+                                showRemoteDisconnectDialog = true
+                            } else {
+                                if (uiState.hasScanPermission && uiState.hasConnectPermission) {
+                                    showRemoteDevicePicker = true
+                                    viewModel.startRemoteScan()
+                                } else {
+                                    permissionLauncher.launch(requiredPermissions())
+                                }
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Text(
-                        text = if (uiState.isRemoteScanning) "Scanning Remote..." else "Connect Remote",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 9.sp),
                     )
                 }
             }
 
-            uiState.selectedDevice?.let { device ->
+            // Errors
+            uiState.error?.let { error ->
                 Text(
-                    text = "Desk: ${device.name ?: device.address}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondaryTextColor(),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            uiState.selectedRemoteDevice?.let { device ->
-                Text(
-                    text = "Remote: ${device.name ?: device.address}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondaryTextColor(),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            val currentError = uiState.error
-            if (currentError != null) {
-                Text(
-                    text = errorMessage(currentError),
+                    text = errorMessage(error),
                     style = MaterialTheme.typography.labelSmall,
                     color = secondaryTextColor(),
                 )
             }
 
-            if (isDeskConnected) {
-                Text(
-                    text = "Tap to toggle movement",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondaryTextColor(),
-                )
-
+            // Movement Controls
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     HoldCommandButton(
-                        label = "Up",
-                        enabled = true,
+                        label = "UP",
+                        icon = Icons.Default.KeyboardArrowUp,
+                        enabled = isDeskConnected,
                         onClick = { viewModel.toggleMotion(DeskCommand.Up) },
                     )
                     HoldCommandButton(
-                        label = "Down",
-                        enabled = true,
+                        label = "DOWN",
+                        icon = Icons.Default.KeyboardArrowDown,
+                        enabled = isDeskConnected,
                         onClick = { viewModel.toggleMotion(DeskCommand.Down) },
                     )
                 }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    CommandButton("Memory 1", enabled = true) {
-                        viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.One))
-                    }
-                    CommandButton("Memory 2", enabled = true) {
-                        viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Two))
-                    }
-                    CommandButton("Memory 3", enabled = true) {
-                        viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Three))
-                    }
+                    PresetButton(
+                        label = "P1",
+                        enabled = isDeskConnected,
+                        onClick = { viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.One)) }
+                    )
+                    PresetButton(
+                        label = "P2",
+                        enabled = isDeskConnected,
+                        onClick = { viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Two)) }
+                    )
+                    PresetButton(
+                        label = "P3",
+                        enabled = isDeskConnected,
+                        onClick = { viewModel.sendCommand(DeskCommand.Memory(DeskMemorySlot.Three)) }
+                    )
                 }
-            }
-            if (!isDeskConnected) {
-                Text(
-                    text = "Connect desk to enable movement controls.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondaryTextColor(),
-                )
             }
         }
     }
 
+    // Dialogs
     if (showDeskDisconnectDialog) {
         AlertDialog(
             onDismissRequest = { showDeskDisconnectDialog = false },
@@ -415,65 +369,124 @@ fun DeskControlCard(viewModel: DeskControlViewModel) {
 }
 
 @Composable
-private fun StatusChip(
-    text: String,
-    onClick: (() -> Unit)? = null,
-) {
-    val clickableModifier = if (onClick != null) {
-        Modifier.clickable { onClick() }
-    } else {
-        Modifier
-    }
-
-    Box(
-        modifier = Modifier
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .then(clickableModifier)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-            color = secondaryTextColor(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun RowScope.CommandButton(
+private fun ConnectionIndicator(
     label: String,
-    enabled: Boolean,
+    isConnected: Boolean,
     onClick: () -> Unit,
 ) {
-    Button(
-        modifier = Modifier.weight(1f),
-        onClick = onClick,
-        enabled = enabled,
-        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(8.dp),
+    val backgroundColor = if (isConnected) {
+        AccentOrange.copy(alpha = 0.1f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+    
+    val contentColor = if (isConnected) {
+        AccentOrange
+    } else {
+        secondaryTextColor()
+    }
+
+    val borderColor = if (isConnected) AccentOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+
+    Row(
+        modifier = Modifier
+            .background(backgroundColor, RoundedCornerShape(6.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            ),
+            color = contentColor
+        )
+        Icon(
+            imageVector = if (isConnected) Icons.Default.Check else Icons.Default.Close,
+            contentDescription = null,
+            modifier = Modifier.size(10.dp),
+            tint = contentColor
+        )
     }
 }
 
 @Composable
 private fun RowScope.HoldCommandButton(
     label: String,
+    icon: ImageVector,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
     Button(
-        modifier = Modifier.weight(1f),
+        modifier = Modifier
+            .weight(1f)
+            .height(80.dp),
         onClick = onClick,
         enabled = enabled,
-        colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = AccentOrange,
+            contentColor = Color.White,
+            disabledContainerColor = AccentOrange.copy(alpha = 0.3f),
+            disabledContentColor = Color.White.copy(alpha = 0.5f)
+        ),
+        contentPadding = PaddingValues(0.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    letterSpacing = 0.5.sp
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowScope.PresetButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(
+        modifier = Modifier
+            .weight(1f)
+            .height(40.dp),
+        onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            contentColor = primaryTextColor(),
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+            disabledContentColor = secondaryTextColor()
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        ),
+        contentPadding = PaddingValues(0.dp),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+        )
     }
 }
 

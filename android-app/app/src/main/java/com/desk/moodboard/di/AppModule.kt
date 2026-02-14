@@ -61,8 +61,8 @@ val appModule = module {
     single { CalendarViewModel(get()) }
     single { UserPreferences(androidContext()) }
 
-    viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { VoiceAgentViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AssistantViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { DeskControlViewModel(get(), get(), get()) }
     viewModel { SettingsViewModel(get()) }
