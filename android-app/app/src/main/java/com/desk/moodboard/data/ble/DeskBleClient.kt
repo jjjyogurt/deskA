@@ -183,6 +183,32 @@ class DeskBleClient(
         }
     }
 
+    /**
+     * Request connection priority for throughput (BLE 5.0).
+     * Call after MTU is negotiated. Use [BluetoothGatt.CONNECTION_PRIORITY_HIGH] for audio.
+     */
+    fun requestConnectionPriority(priority: Int): Result<Unit> {
+        return runCatching {
+            val gatt = bluetoothGatt ?: throw DeskBleClientException("Not connected to a device.")
+            if (!gatt.requestConnectionPriority(priority)) {
+                throw DeskBleClientException("Connection priority request could not be initiated.")
+            }
+            Log.d(Tag, "Connection priority request initiated priority=$priority")
+        }
+    }
+
+    /**
+     * Set preferred PHY for BLE 5.0 (e.g. 2M for high throughput).
+     * Use [BluetoothDevice.PHY_LE_2M_MASK] for txPhy/rxPhy (value 2).
+     */
+    fun setPreferredPhy(txPhy: Int, rxPhy: Int, phyOptions: Int): Result<Unit> {
+        return runCatching {
+            val gatt = bluetoothGatt ?: throw DeskBleClientException("Not connected to a device.")
+            gatt.setPreferredPhy(txPhy, rxPhy, phyOptions)
+            Log.d(Tag, "Preferred PHY set txPhy=$txPhy rxPhy=$rxPhy phyOptions=$phyOptions")
+        }
+    }
+
     private fun enqueueWrite(
         gatt: BluetoothGatt,
         request: WriteRequest,
@@ -380,19 +406,16 @@ class DeskBleClient(
                     writeQueue.clear()
                     return
                 }
-                val currentGatt = bluetoothGatt ?: gatt
-                if (currentGatt != null) {
-                    try {
-                        writeNextLocked(currentGatt)
-                    } catch (error: Exception) {
-                        Log.e(Tag, "Write continuation failed: ${error.message}", error)
-                    }
-                } else {
-                    writeQueue.clear()
+                val gattToUse = bluetoothGatt ?: gatt
+                try {
+                    writeNextLocked(gattToUse)
+                } catch (error: Exception) {
+                    Log.e(Tag, "Write continuation failed: ${error.message}", error)
                 }
             }
         }
 
+        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
@@ -435,6 +458,12 @@ class DeskBleClient(
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
             Log.d(Tag, "MTU changed mtu=$mtu status=$status")
             _events.tryEmit(DeskBleClientEvent.MtuChanged(mtu = mtu, status = status))
+        }
+
+        @Suppress("DEPRECATION")
+        override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+            Log.d(Tag, "PHY update txPhy=$txPhy rxPhy=$rxPhy status=$status")
+            _events.tryEmit(DeskBleClientEvent.PhyUpdated(txPhy = txPhy, rxPhy = rxPhy, status = status))
         }
     }
 
@@ -485,6 +514,11 @@ sealed class DeskBleClientEvent {
     ) : DeskBleClientEvent()
     data class MtuChanged(
         val mtu: Int,
+        val status: Int,
+    ) : DeskBleClientEvent()
+    data class PhyUpdated(
+        val txPhy: Int,
+        val rxPhy: Int,
         val status: Int,
     ) : DeskBleClientEvent()
     data class Error(val message: String) : DeskBleClientEvent()

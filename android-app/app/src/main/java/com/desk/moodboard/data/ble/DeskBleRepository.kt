@@ -144,6 +144,12 @@ class DeskBleRepository(
                     is DeskBleClientEvent.MtuChanged -> {
                         Log.d(Tag, "MTU updated mtu=${event.mtu} status=${event.status}")
                     }
+                    is DeskBleClientEvent.PhyUpdated -> {
+                        Log.d(
+                            Tag,
+                            "PHY updated txPhy=${event.txPhy} rxPhy=${event.rxPhy} status=${event.status}",
+                        )
+                    }
                     is DeskBleClientEvent.Error -> {
                         _connectionState.value = DeskConnectionState.Error(DeskError.GattError(event.message))
                     }

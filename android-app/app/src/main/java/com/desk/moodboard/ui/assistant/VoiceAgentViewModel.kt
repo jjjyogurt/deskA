@@ -580,7 +580,7 @@ open class VoiceAgentViewModel(
     companion object {
         private const val AsrTimeoutMs = 10000L
         private const val LlmTimeoutMs = 8000L
-        private const val RemotePostStopIdleTimeoutMs = 8000L
+        private const val RemotePostStopIdleTimeoutMs = 2000L
         private const val RemoteAsrSampleRateHz = 16000
         private const val RemoteAsrChannelCount = 1
         private const val RemoteAsrBytesPerSample = 2

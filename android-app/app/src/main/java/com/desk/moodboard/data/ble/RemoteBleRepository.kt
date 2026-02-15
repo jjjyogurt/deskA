@@ -1,6 +1,7 @@
 package com.desk.moodboard.data.ble
 
 import android.util.Log
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import com.desk.moodboard.domain.desk.DeskCommand
 import com.desk.moodboard.domain.desk.DeskConnectionState
@@ -26,9 +27,11 @@ class RemoteBleRepository(
         private const val Tag = "RemoteBleRepository"
         private const val RemoteDeviceName = "ESP32S3_Remote_Desk"
         private const val AudioHeaderSize = 4
+        /** Max PCM payload bytes per packet (firmware profile: MTU 256, payload 244). */
+        private const val MaxAudioPayloadBytes = 244
         private const val MicStartCommand = 0x10
         private const val MicStopCommand = 0x11
-        private const val MtuRequestSize = 517
+        private const val MtuRequestSize = 256
     }
 
     private val _connectionState = MutableStateFlow<DeskConnectionState>(DeskConnectionState.Disconnected)
@@ -140,17 +143,22 @@ class RemoteBleRepository(
                     is DeskBleClientEvent.MtuChanged -> {
                         Log.i(Tag, "Remote BLE MTU negotiated=${event.mtu} status=${event.status}")
                         if (setupState == NotificationSetupState.WaitingForMtu) {
-                            setupState = if (event.status == BluetoothGatt.GATT_SUCCESS) {
-                                NotificationSetupState.Complete
+                            if (event.status == BluetoothGatt.GATT_SUCCESS) {
+                                requestBle5HighThroughput()
+                                setupState = NotificationSetupState.Complete
                             } else {
-                                NotificationSetupState.Failed
-                            }
-                            if (event.status != BluetoothGatt.GATT_SUCCESS) {
+                                setupState = NotificationSetupState.Failed
                                 _connectionState.value = DeskConnectionState.Error(
                                     DeskError.GattError("MTU negotiation failed status=${event.status}")
                                 )
                             }
                         }
+                    }
+                    is DeskBleClientEvent.PhyUpdated -> {
+                        Log.i(
+                            Tag,
+                            "Remote BLE PHY updated txPhy=${event.txPhy} rxPhy=${event.rxPhy} status=${event.status}"
+                        )
                     }
                     is DeskBleClientEvent.Error -> {
                         _connectionState.value = DeskConnectionState.Error(DeskError.GattError(event.message))
@@ -192,6 +200,20 @@ class RemoteBleRepository(
             setupState = NotificationSetupState.Failed
             _connectionState.value = DeskConnectionState.Error(mapError(error))
         }
+    }
+
+    /**
+     * After MTU is negotiated, request high connection priority and 2M PHY for BLE 5.0 throughput.
+     * Failures are logged but do not fail setup (link still works with 1M PHY).
+     */
+    private fun requestBle5HighThroughput() {
+        client.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+            .onFailure { e -> Log.w(Tag, "Connection priority request failed: ${e.message}") }
+        client.setPreferredPhy(
+            BluetoothDevice.PHY_LE_2M_MASK,
+            BluetoothDevice.PHY_LE_2M_MASK,
+            BluetoothDevice.PHY_OPTION_NO_PREFERRED,
+        ).onFailure { e -> Log.w(Tag, "Preferred PHY set failed: ${e.message}") }
     }
 
     private fun handleDescriptorWritten(event: DeskBleClientEvent.DescriptorWritten) {
@@ -238,9 +260,16 @@ class RemoteBleRepository(
         }
     }
 
+    /**
+     * Parse BLE audio packet. Header is always 4 bytes; payload length is variable (legacy 16, BLE 5.0 up to 508).
+     */
     private fun parseAudioPacket(payload: ByteArray): RemoteAudioPacket? {
         if (payload.size < AudioHeaderSize) {
             Log.w(Tag, "Ignoring audio packet with invalid size=${payload.size}")
+            return null
+        }
+        if (payload.size > AudioHeaderSize + MaxAudioPayloadBytes) {
+            Log.w(Tag, "Ignoring oversized audio packet size=${payload.size} max=${AudioHeaderSize + MaxAudioPayloadBytes}")
             return null
         }
         val sequence = ByteBuffer.wrap(payload, 0, 2).order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
