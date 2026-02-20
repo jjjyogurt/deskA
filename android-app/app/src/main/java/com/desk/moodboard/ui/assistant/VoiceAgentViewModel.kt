@@ -14,6 +14,7 @@ import com.desk.moodboard.data.ble.RemoteAudioPacket
 import com.desk.moodboard.data.ble.RemoteBleRepository
 import com.desk.moodboard.data.ble.RemoteMicEvent
 import com.desk.moodboard.data.remote.DoubaoService
+import com.desk.moodboard.data.repository.CalendarCreateResult
 import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.data.repository.NoteRepository
 import com.desk.moodboard.data.repository.TodoRepository
@@ -503,13 +504,25 @@ open class VoiceAgentViewModel(
                 }
 
                 val finalRequest = request.copy(title = derivedTitle)
-                if (calendarRepository.createEvent(finalRequest)) {
-                    addMessage("Scheduled: ${finalRequest.title}", false)
-                    triggerSuccessFeedback()
-                    finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
-                    calendarViewModel.refreshEvents()
-                } else {
-                    addMessage("Failed to schedule.", false)
+                when (val createResult = calendarRepository.createEvent(finalRequest)) {
+                    is CalendarCreateResult.Success -> {
+                        addMessage("Scheduled: ${finalRequest.title}", false)
+                        triggerSuccessFeedback()
+                        finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
+                        calendarViewModel.refreshEvents()
+                    }
+                    is CalendarCreateResult.PermissionDenied -> {
+                        addMessage("Calendar write permission is required. Please enable calendar access.", false)
+                    }
+                    is CalendarCreateResult.NoWritableCalendar -> {
+                        addMessage("No writable calendar account found on this device.", false)
+                    }
+                    is CalendarCreateResult.InvalidInput -> {
+                        addMessage(createResult.reason, false)
+                    }
+                    is CalendarCreateResult.ProviderError -> {
+                        addMessage("Failed to schedule. ${createResult.reason ?: "Please try again."}", false)
+                    }
                 }
             }
             EventAction.LIST -> {

@@ -11,6 +11,7 @@ import com.desk.moodboard.data.model.NoteRequest
 import com.desk.moodboard.data.model.TodoItem
 import com.desk.moodboard.data.model.TodoRequest
 import com.desk.moodboard.data.remote.DoubaoService
+import com.desk.moodboard.data.repository.CalendarCreateResult
 import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.data.repository.NoteRepository
 import com.desk.moodboard.data.repository.TodoRepository
@@ -387,12 +388,39 @@ class TodoViewModel(
         }
 
         val finalRequest = request.copy(title = derivedTitle)
-        if (calendarRepository.createEvent(finalRequest)) {
-            _uiState.update { it.copy(isLoading = false, statusMessage = "Scheduled: ${finalRequest.title}") }
-            finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
-            calendarViewModel.refreshEvents()
-        } else {
-            _uiState.update { it.copy(isLoading = false, statusMessage = "Failed to schedule.") }
+        when (val createResult = calendarRepository.createEvent(finalRequest)) {
+            is CalendarCreateResult.Success -> {
+                _uiState.update { it.copy(isLoading = false, statusMessage = "Scheduled: ${finalRequest.title}") }
+                finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
+                calendarViewModel.refreshEvents()
+            }
+            is CalendarCreateResult.PermissionDenied -> {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "Calendar write permission is required. Please enable calendar access."
+                    )
+                }
+            }
+            is CalendarCreateResult.NoWritableCalendar -> {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "No writable calendar account found on this device."
+                    )
+                }
+            }
+            is CalendarCreateResult.InvalidInput -> {
+                _uiState.update { it.copy(isLoading = false, statusMessage = createResult.reason) }
+            }
+            is CalendarCreateResult.ProviderError -> {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "Failed to schedule. ${createResult.reason ?: "Please try again."}"
+                    )
+                }
+            }
         }
     }
 

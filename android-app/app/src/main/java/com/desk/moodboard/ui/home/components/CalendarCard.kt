@@ -46,23 +46,29 @@ fun CalendarCard(viewModel: CalendarViewModel) {
     var permissionChecked by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasPermission = isGranted
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val hasRead = grants[Manifest.permission.READ_CALENDAR] == true
+        val hasWrite = grants[Manifest.permission.WRITE_CALENDAR] == true
+        hasPermission = hasRead && hasWrite
         permissionChecked = true
-        if (isGranted) {
+        if (hasPermission) {
             viewModel.refreshEvents()
         }
     }
 
     LaunchedEffect(Unit) {
-        val granted = ContextCompat.checkSelfPermission(
+        val hasRead = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CALENDAR
         ) == PackageManager.PERMISSION_GRANTED
-        hasPermission = granted
+        val hasWrite = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+        hasPermission = hasRead && hasWrite
         permissionChecked = true
-        if (granted) {
+        if (hasPermission) {
             viewModel.refreshEvents()
         }
     }
@@ -93,12 +99,19 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                         color = primaryTextColor()
                     )
                     Text(
-                        text = "Grant permission to show your upcoming events.",
+                        text = "Grant read and write access to show and create calendar events.",
                         style = MaterialTheme.typography.labelSmall,
                         color = secondaryTextColor()
                     )
                     Button(
-                        onClick = { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) },
+                        onClick = {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.READ_CALENDAR,
+                                    Manifest.permission.WRITE_CALENDAR
+                                )
+                            )
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AccentOrange,
                             contentColor = eInkTextColorOr(Color.White),
