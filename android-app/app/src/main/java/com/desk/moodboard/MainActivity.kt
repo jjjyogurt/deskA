@@ -8,22 +8,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -46,6 +38,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.desk.moodboard.ui.assistant.AssistantScreen
 import com.desk.moodboard.ui.assistant.AssistantViewModel
+import com.desk.moodboard.ui.focus.AwayModeViewModel
 import com.desk.moodboard.ui.focus.FocusScreen
 import com.desk.moodboard.ui.health.HealthScreen
 import com.desk.moodboard.ui.home.HomeScreen
@@ -94,6 +87,8 @@ private data class NavItem(
 @Composable
 private fun MoodboardApp() {
     val navController = rememberNavController()
+    val awayModeViewModel: AwayModeViewModel = koinViewModel()
+    val awayUiState by awayModeViewModel.uiState.collectAsStateWithLifecycle()
     val navItems = listOf(
         NavItem("home", "Home", null),
         NavItem("health", "Health", null),
@@ -106,44 +101,46 @@ private fun MoodboardApp() {
 
     Scaffold(
         bottomBar = {
-            Surface(
-                color = appSurfaceColor(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(Dimens.navHeight)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+            if (!awayUiState.isAway) {
+                Surface(
+                    color = appSurfaceColor(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(Dimens.navHeight)
                 ) {
-                    navItems.forEach { item ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    if (!selected) {
-                                        navController.navigate(item.route) {
-                                            launchSingleTop = true
-                                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                            restoreState = true
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        navItems.forEach { item ->
+                            val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (!selected) {
+                                            navController.navigate(item.route) {
+                                                launchSingleTop = true
+                                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                                restoreState = true
+                                            }
                                         }
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = item.label,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                ),
-                                color = if (selected) eInkTextColorOr(AccentOrange) else secondaryTextColor()
-                            )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = item.label,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    ),
+                                    color = if (selected) eInkTextColorOr(AccentOrange) else secondaryTextColor()
+                                )
+                            }
                         }
                     }
                 }
@@ -168,7 +165,7 @@ private fun MoodboardApp() {
             ) {
                 composable("home") { HomeScreen() }
                 composable("health") { HealthScreen() }
-                composable("focus") { FocusScreen() }
+                composable("focus") { FocusScreen(awayModeViewModel = awayModeViewModel) }
                 composable("settings") { SettingsScreen() }
             }
         }

@@ -4,10 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,8 +20,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -38,9 +43,14 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.desk.moodboard.data.model.AwayTranscriptStatus
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.appBackgroundColor
@@ -48,15 +58,38 @@ import com.desk.moodboard.ui.theme.appSurfaceColor
 import com.desk.moodboard.ui.theme.eInkTextColorOr
 import com.desk.moodboard.ui.theme.primaryTextColor
 import com.desk.moodboard.ui.theme.secondaryTextColor
-import com.desk.moodboard.ui.theme.YogurtSilk
-import com.desk.moodboard.ui.theme.YogurtNavy
-import com.desk.moodboard.ui.theme.YogurtGrey as OldYogurtGrey
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.foundation.lazy.items
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FocusScreen(viewModel: FocusViewModel = viewModel()) {
+fun FocusScreen(
+    viewModel: FocusViewModel = viewModel(),
+    awayModeViewModel: AwayModeViewModel = koinViewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
     var showTimerPicker by remember { mutableStateOf(false) }
+    val awayUiState by awayModeViewModel.uiState.collectAsStateWithLifecycle()
+
+    if (awayUiState.isAway) {
+        AwayModeScreen(
+            uiState = awayUiState,
+            onBack = { awayModeViewModel.toggleAwayMode(false) },
+            onOpenGreetingEditor = { awayModeViewModel.openGreetingEditor() },
+            onUpdateGreetingDraft = { awayModeViewModel.updateGreetingDraft(it) },
+            onRequestCloseGreetingEditor = { awayModeViewModel.requestCloseGreetingEditor() },
+            onDismissDiscardDialog = { awayModeViewModel.dismissDiscardGreetingDialog() },
+            onDiscardGreetingChanges = { awayModeViewModel.discardGreetingChanges() },
+            onSaveGreetingDraft = { awayModeViewModel.saveGreetingDraft() },
+            onToggleRecording = {
+                if (awayUiState.isRecording) awayModeViewModel.stopRecordingAndSave()
+                else if (awayUiState.recordingStage == RecordingStage.Idle) awayModeViewModel.startRecording()
+            }
+        )
+        return
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -103,7 +136,12 @@ fun FocusScreen(viewModel: FocusViewModel = viewModel()) {
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     FocusStatsRow()
-                    DistractionCard()
+                    DistractionCard(
+                        awayUiState = awayUiState,
+                        onAwayModeClick = { awayModeViewModel.toggleAwayMode(true) },
+                        onToggleMessagePlayback = { awayModeViewModel.onPlayPauseMessage(it) },
+                        onDeleteMessage = { awayModeViewModel.deleteMessage(it) }
+                    )
                 }
             }
         }
@@ -319,7 +357,16 @@ private fun RowScope.StatCard(title: String, value: String, subtitle: String) {
 }
 
 @Composable
-private fun DistractionCard() {
+@OptIn(ExperimentalMaterial3Api::class)
+private fun DistractionCard(
+    awayUiState: AwayModeUiState,
+    onAwayModeClick: () -> Unit,
+    onToggleMessagePlayback: (VoiceMessage) -> Unit,
+    onDeleteMessage: (VoiceMessage) -> Unit
+) {
+    val expandedRows = remember { mutableStateMapOf<String, Boolean>() }
+    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Dimens.cardCorner),
@@ -336,34 +383,163 @@ private fun DistractionCard() {
                 )
         ) {
             Column(
-                modifier = Modifier.padding(Dimens.cardPadding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(Dimens.cardPadding),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(
-                    text = "Distractions",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = primaryTextColor(),
-                )
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .background(AccentOrange, CircleShape),
-                    )
                     Text(
-                        text = "None detected",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = primaryTextColor(),
+                        text = "VOICEMAILS",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.9.sp,
+                            fontSize = 10.sp
+                        ),
+                        color = secondaryTextColor(),
                     )
+
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = appBackgroundColor(),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable { onAwayModeClick() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(AccentOrange, CircleShape)
+                            )
+                            Text(
+                                text = "Set Away",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = primaryTextColor()
+                            )
+                        }
+                    }
                 }
-                Text(
-                    text = "Tracked during sessions",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = secondaryTextColor(),
-                )
+
+                if (awayUiState.messages.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "No new messages",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = secondaryTextColor()
+                        )
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(
+                            items = awayUiState.messages,
+                            key = { it.id }
+                        ) { msg ->
+                            val expanded = expandedRows[msg.id] == true
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    if (value == SwipeToDismissBoxValue.EndToStart) {
+                                        expandedRows.remove(msg.id)
+                                        onDeleteMessage(msg)
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                },
+                                positionalThreshold = { totalDistance -> totalDistance * 0.35f }
+                            )
+
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                enableDismissFromStartToEnd = false,
+                                backgroundContent = {
+                                    val isDeleteDirection = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+                                    val revealProgress = if (isDeleteDirection) dismissState.progress.coerceIn(0f, 1f) else 0f
+                                    val backgroundAlpha = if (revealProgress >= 0.3f) 0.16f else 0f
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                if (isDeleteDirection) AccentOrange.copy(alpha = backgroundAlpha) else Color.Transparent,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        if (revealProgress >= 0.3f) {
+                                            Icon(
+                                                painter = painterResource(id = android.R.drawable.ic_menu_delete),
+                                                contentDescription = "Delete voicemail",
+                                                tint = AccentOrange,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(appBackgroundColor(), RoundedCornerShape(8.dp))
+                                        .clickable { expandedRows[msg.id] = !expanded }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    val isActive = awayUiState.activePlaybackId == msg.id && awayUiState.isPlaying
+                                    Icon(
+                                        painter = painterResource(
+                                            id = if (isActive) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+                                        ),
+                                        contentDescription = if (isActive) "Pause" else "Play",
+                                        tint = AccentOrange,
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clickable { onToggleMessagePlayback(msg) }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = timeFormatter.format(Date(msg.timestamp)),
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = primaryTextColor()
+                                        )
+                                        if (expanded) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            val transcriptText = when (msg.transcriptStatus) {
+                                                AwayTranscriptStatus.PENDING -> "Transcribing..."
+                                                AwayTranscriptStatus.FAILED -> "Transcript unavailable"
+                                                AwayTranscriptStatus.READY -> msg.transcribedText?.ifBlank { "Transcript unavailable" }
+                                                    ?: "Transcript unavailable"
+                                            }
+                                            Text(
+                                                text = transcriptText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = secondaryTextColor(),
+                                                maxLines = 5,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

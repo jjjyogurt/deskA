@@ -9,6 +9,7 @@ import com.desk.moodboard.data.ble.RemoteBleBridgeServer
 import com.desk.moodboard.data.ble.RemoteBleRepository
 import com.desk.moodboard.data.preferences.UserPreferences
 import com.desk.moodboard.data.remote.DoubaoService
+import com.desk.moodboard.data.repository.AwayMessageRepository
 import com.desk.moodboard.data.repository.CalendarRepository
 import com.desk.moodboard.data.repository.NoteRepository
 import com.desk.moodboard.data.repository.TodoRepository
@@ -22,6 +23,8 @@ import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.ui.settings.SettingsViewModel
 import com.desk.moodboard.voice.AudioRecorder
 import com.desk.moodboard.voice.VolcengineASRService
+import com.desk.moodboard.voice.VoiceMessageFileStore
+import com.desk.moodboard.voice.VoiceMessagePlayer
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -42,9 +45,13 @@ val appModule = module {
     }
     single { get<TodoDatabase>().todoDao() }
     single { get<TodoDatabase>().noteDao() }
+    single { get<TodoDatabase>().awayMessageDao() }
     single { TodoRepository(get()) }
     single { NoteRepository(get()) }
+    single { AwayMessageRepository(get()) }
     single { AudioRecorder(androidContext()) }
+    single { VoiceMessageFileStore(androidContext()) }
+    single { VoiceMessagePlayer() }
     single { 
         val appid = "5448745405"
         val token = "Zv7AE4-YmY15rJwWZXGfJodbv8d4Y2sj"
@@ -66,5 +73,6 @@ val appModule = module {
     viewModel { TodoViewModel(getOrNull(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { DeskControlViewModel(get(), get(), get()) }
     viewModel { SettingsViewModel(get()) }
+    viewModel { com.desk.moodboard.ui.focus.AwayModeViewModel(get(), get(), get(), get(), get()) }
 }
 
