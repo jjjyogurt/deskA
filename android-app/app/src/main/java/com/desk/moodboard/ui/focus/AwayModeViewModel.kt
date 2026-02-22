@@ -1,7 +1,9 @@
 package com.desk.moodboard.ui.focus
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.desk.moodboard.R
 import com.desk.moodboard.data.model.AwayMessageItem
 import com.desk.moodboard.data.model.AwayTranscriptStatus
 import com.desk.moodboard.data.repository.AwayMessageRepository
@@ -21,6 +23,7 @@ import java.util.UUID
 import kotlinx.coroutines.withTimeoutOrNull
 
 class AwayModeViewModel(
+    private val appContext: Context,
     private val audioRecorder: AudioRecorder,
     private val volcengineASRService: VolcengineASRService,
     private val awayMessageRepository: AwayMessageRepository,
@@ -36,6 +39,8 @@ class AwayModeViewModel(
     @Volatile private var latestTranscript: String? = null
 
     init {
+        val defaultGreeting = appContext.getString(R.string.away_default_greeting)
+        _uiState.update { it.copy(customGreeting = defaultGreeting, greetingDraft = defaultGreeting) }
         observeMessages()
         observePlayback()
     }
@@ -51,7 +56,7 @@ class AwayModeViewModel(
     }
 
     fun updateGreeting(newGreeting: String) {
-        val sanitized = newGreeting.trim().ifBlank { "Away.\nLeave a voice mail." }
+        val sanitized = newGreeting.trim().ifBlank { appContext.getString(R.string.away_default_greeting) }
         _uiState.update { it.copy(customGreeting = sanitized, greetingDraft = sanitized) }
     }
 
@@ -97,7 +102,9 @@ class AwayModeViewModel(
     }
 
     fun saveGreetingDraft() {
-        val sanitized = _uiState.value.greetingDraft.trim().ifBlank { "Away.\nLeave a voice mail." }
+        val sanitized = _uiState.value.greetingDraft.trim().ifBlank {
+            appContext.getString(R.string.away_default_greeting)
+        }
         _uiState.update {
             it.copy(
                 customGreeting = sanitized,
@@ -144,7 +151,7 @@ class AwayModeViewModel(
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
-                    errorMessage = "Microphone access failed.",
+                    errorMessage = appContext.getString(R.string.away_error_microphone_access),
                     isRecording = false,
                     recordingStage = RecordingStage.Idle
                 )
@@ -231,7 +238,7 @@ class AwayModeViewModel(
                 _uiState.update {
                     it.copy(
                         recordingStage = RecordingStage.Idle,
-                        errorMessage = "Unable to save this recording.",
+                        errorMessage = appContext.getString(R.string.away_error_save_recording),
                         showSuccessFeedback = false
                     )
                 }
@@ -248,7 +255,7 @@ class AwayModeViewModel(
 
         if (!voiceMessageFileStore.exists(message.audioFilePath)) {
             _uiState.update {
-                it.copy(errorMessage = "Audio file not found.")
+                it.copy(errorMessage = appContext.getString(R.string.away_error_audio_file_not_found))
             }
             return
         }
@@ -265,7 +272,7 @@ class AwayModeViewModel(
                 awayMessageRepository.deleteMessage(message.id)
                 voiceMessageFileStore.delete(message.audioFilePath)
             } catch (_: Exception) {
-                _uiState.update { it.copy(errorMessage = "Unable to delete message.") }
+                _uiState.update { it.copy(errorMessage = appContext.getString(R.string.away_error_delete_message)) }
             }
         }
     }

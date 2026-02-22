@@ -34,8 +34,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.desk.moodboard.R
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.YogurtMint
@@ -89,7 +91,7 @@ fun AwayModeScreen(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                                contentDescription = "Exit away mode",
+                                contentDescription = stringResource(R.string.away_exit),
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(14.dp)
                             )
@@ -112,7 +114,7 @@ fun AwayModeScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Tap to edit",
+                        text = stringResource(R.string.away_tap_to_edit),
                         style = MaterialTheme.typography.labelSmall,
                         color = secondaryTextColor()
                     )
@@ -130,7 +132,7 @@ fun AwayModeScreen(
                     when (uiState.recordingStage) {
                         RecordingStage.Saving -> {
                             Text(
-                                text = "Saving recording...",
+                                text = stringResource(R.string.away_saving_recording),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = secondaryTextColor()
                             )
@@ -138,7 +140,7 @@ fun AwayModeScreen(
                         }
                         RecordingStage.Transcribing -> {
                             Text(
-                                text = "Transcribing...",
+                                text = stringResource(R.string.away_transcribing),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = secondaryTextColor()
                             )
@@ -170,11 +172,11 @@ fun AwayModeScreen(
                             ) {
                                 Icon(
                                     painter = painterResource(id = android.R.drawable.checkbox_on_background),
-                                    contentDescription = "Success",
+                                    contentDescription = null,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "Message saved!",
+                                    text = stringResource(R.string.away_saved_success),
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                                 )
                             }
@@ -191,7 +193,7 @@ fun AwayModeScreen(
                 if (!uiState.isRecording) {
                     TextButton(onClick = onBack) {
                         Text(
-                            text = "I'm back",
+                            text = stringResource(R.string.away_back),
                             style = MaterialTheme.typography.labelLarge,
                             color = secondaryTextColor()
                         )
@@ -214,16 +216,16 @@ fun AwayModeScreen(
         if (uiState.showDiscardGreetingDialog) {
             AlertDialog(
                 onDismissRequest = onDismissDiscardDialog,
-                title = { Text("Discard changes?") },
-                text = { Text("Your edited greeting has not been saved.") },
+                title = { Text(stringResource(R.string.away_discard_title)) },
+                text = { Text(stringResource(R.string.away_discard_body)) },
                 confirmButton = {
                     TextButton(onClick = onDiscardGreetingChanges) {
-                        Text("Discard", color = AccentOrange)
+                        Text(stringResource(R.string.away_discard), color = AccentOrange)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = onDismissDiscardDialog) {
-                        Text("Keep editing", color = primaryTextColor())
+                        Text(stringResource(R.string.away_keep_editing), color = primaryTextColor())
                     }
                 },
                 containerColor = appSurfaceColor(),
@@ -275,7 +277,11 @@ fun RecordMicButton(
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     painter = painterResource(id = if (isRecording) android.R.drawable.ic_media_pause else android.R.drawable.ic_btn_speak_now),
-                    contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
+                    contentDescription = if (isRecording) {
+                        stringResource(R.string.away_stop_recording)
+                    } else {
+                        stringResource(R.string.away_start_recording)
+                    },
                     modifier = Modifier.size(32.dp)
                 )
             }
@@ -284,7 +290,11 @@ fun RecordMicButton(
     
     Spacer(modifier = Modifier.height(16.dp))
     Text(
-        text = if (isRecording) "Tap to stop & save" else "Tap to Record",
+        text = if (isRecording) {
+            stringResource(R.string.away_tap_to_stop_save)
+        } else {
+            stringResource(R.string.away_tap_to_record)
+        },
         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
         color = secondaryTextColor()
     )
@@ -322,7 +332,7 @@ fun EditGreetingFullscreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Edit Greeting",
+                        text = stringResource(R.string.away_edit_greeting),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = primaryTextColor()
                     )
@@ -335,7 +345,7 @@ fun EditGreetingFullscreen(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                                contentDescription = "Close",
+                                contentDescription = stringResource(R.string.content_desc_close),
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(14.dp)
                             )
@@ -363,7 +373,7 @@ fun EditGreetingFullscreen(
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Text(
-                        text = "Save",
+                        text = stringResource(R.string.away_save),
                         color = primaryTextColor(),
                         fontWeight = FontWeight.Bold
                     )

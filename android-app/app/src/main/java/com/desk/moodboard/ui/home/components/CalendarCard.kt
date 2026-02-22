@@ -25,16 +25,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.desk.moodboard.R
 import com.desk.moodboard.ui.home.CalendarViewModel
 import com.desk.moodboard.ui.home.CalendarViewMode
 import com.desk.moodboard.ui.theme.*
 import kotlinx.datetime.*
+import java.time.DayOfWeek
+import java.time.format.TextStyle
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.*
 import kotlinx.datetime.toJavaLocalDate
 
@@ -94,12 +99,12 @@ fun CalendarCard(viewModel: CalendarViewModel) {
             ) {
                 if (!permissionChecked || !hasPermission) {
                     Text(
-                        text = "Calendar access needed",
+                        text = stringResource(R.string.home_calendar_access_title),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = primaryTextColor()
                     )
                     Text(
-                        text = "Grant read and write access to show and create calendar events.",
+                        text = stringResource(R.string.home_calendar_access_body),
                         style = MaterialTheme.typography.labelSmall,
                         color = secondaryTextColor()
                     )
@@ -120,7 +125,7 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = "Enable Calendar",
+                            text = stringResource(R.string.home_calendar_enable),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium)
                         )
                     }
@@ -132,10 +137,23 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
+                            val locale = Locale.getDefault()
+                            val selectedJavaDate = uiState.selectedDate.toJavaLocalDate()
                             val headerText = when (uiState.viewMode) {
-                                CalendarViewMode.MONTH -> "${uiState.selectedDate.month} ${uiState.selectedDate.year}"
-                                CalendarViewMode.WEEK -> "Week of ${uiState.selectedDate.dayOfMonth} ${uiState.selectedDate.month}"
-                                CalendarViewMode.DAY -> "${uiState.selectedDate.dayOfWeek}, ${uiState.selectedDate.month} ${uiState.selectedDate.dayOfMonth}"
+                                CalendarViewMode.MONTH -> selectedJavaDate.format(
+                                    DateTimeFormatter.ofPattern("LLLL yyyy", locale)
+                                )
+                                CalendarViewMode.WEEK -> stringResource(
+                                    R.string.home_calendar_header_week,
+                                    uiState.selectedDate.dayOfMonth,
+                                    uiState.selectedDate.month.getDisplayName(TextStyle.SHORT, locale)
+                                )
+                                CalendarViewMode.DAY -> stringResource(
+                                    R.string.home_calendar_header_day,
+                                    uiState.selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, locale),
+                                    uiState.selectedDate.month.getDisplayName(TextStyle.SHORT, locale),
+                                    uiState.selectedDate.dayOfMonth
+                                )
                             }
                             Text(
                                 text = headerText,
@@ -145,8 +163,8 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            CalendarNavButton("<") { viewModel.previous() }
-                            CalendarNavButton(">") { viewModel.next() }
+                            CalendarNavButton(stringResource(R.string.home_calendar_prev)) { viewModel.previous() }
+                            CalendarNavButton(stringResource(R.string.home_calendar_next)) { viewModel.next() }
                         }
                     }
 
@@ -155,13 +173,13 @@ fun CalendarCard(viewModel: CalendarViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        ViewModeButton("Day", uiState.viewMode == CalendarViewMode.DAY) {
+                        ViewModeButton(stringResource(R.string.home_calendar_view_day), uiState.viewMode == CalendarViewMode.DAY) {
                             viewModel.setViewMode(CalendarViewMode.DAY)
                         }
-                        ViewModeButton("Week", uiState.viewMode == CalendarViewMode.WEEK) {
+                        ViewModeButton(stringResource(R.string.home_calendar_view_week), uiState.viewMode == CalendarViewMode.WEEK) {
                             viewModel.setViewMode(CalendarViewMode.WEEK)
                         }
-                        ViewModeButton("Month", uiState.viewMode == CalendarViewMode.MONTH) {
+                        ViewModeButton(stringResource(R.string.home_calendar_view_month), uiState.viewMode == CalendarViewMode.MONTH) {
                             viewModel.setViewMode(CalendarViewMode.MONTH)
                         }
                     }
@@ -231,9 +249,19 @@ private fun MonthView(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Days Header
         Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
+            val locale = Locale.getDefault()
+            val days = listOf(
+                DayOfWeek.SUNDAY,
+                DayOfWeek.MONDAY,
+                DayOfWeek.TUESDAY,
+                DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY,
+                DayOfWeek.FRIDAY,
+                DayOfWeek.SATURDAY
+            )
+            days.forEach { day ->
                 Text(
-                    text = day,
+                    text = day.getDisplayName(TextStyle.SHORT, locale),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
@@ -334,7 +362,7 @@ private fun WeekView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = day.dayOfWeek.name.take(3),
+                    text = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                     modifier = Modifier.width(30.dp),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = if (day == selectedDate) AccentOrange else secondaryTextColor(),

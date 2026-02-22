@@ -26,11 +26,11 @@ data class VoiceMessage(
 @Immutable
 data class AwayModeUiState(
     val isAway: Boolean = false,
-    val customGreeting: String = "Away.\nLeave a voice mail.",
+    val customGreeting: String = "",
     val isRecording: Boolean = false, // maintained for existing call sites
     val recordingStage: RecordingStage = RecordingStage.Idle,
     val isGreetingEditorOpen: Boolean = false,
-    val greetingDraft: String = "Away.\nLeave a voice mail.",
+    val greetingDraft: String = "",
     val showDiscardGreetingDialog: Boolean = false,
     val messages: ImmutableList<VoiceMessage> = persistentListOf(),
     val errorMessage: String? = null,

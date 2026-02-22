@@ -15,10 +15,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.desk.moodboard.R
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.theme.*
 import java.util.Locale
@@ -68,12 +70,16 @@ fun MoodboardCard(assistantViewModel: AssistantViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Moodboard",
+                        text = stringResource(R.string.home_moodboard_title),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = primaryTextColor()
                     )
                     Text(
-                        text = "${moodText.length}/$MoodboardMaxLength",
+                        text = stringResource(
+                            R.string.home_moodboard_counter,
+                            moodText.length,
+                            MoodboardMaxLength
+                        ),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = secondaryTextColor()
                     )
@@ -91,7 +97,7 @@ fun MoodboardCard(assistantViewModel: AssistantViewModel) {
                 ) {
                     if (moodText.isBlank()) {
                         Text(
-                            text = "How are you feeling today?",
+                            text = stringResource(R.string.home_moodboard_hint),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
                             color = secondaryTextColor()
                         )

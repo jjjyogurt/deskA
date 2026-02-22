@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -68,6 +69,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.content.pm.PackageManager
+import com.desk.moodboard.R
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.appBackgroundColor
@@ -89,6 +91,9 @@ import androidx.compose.runtime.collectAsState
 import com.desk.moodboard.ui.desk.DeskControlCard
 import com.desk.moodboard.ui.desk.DeskControlViewModel
 import org.koin.androidx.compose.koinViewModel
+import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
@@ -124,7 +129,7 @@ fun HealthScreen(postureViewModel: PostureViewModel = viewModel()) {
             verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
         ) {
             Text(
-                text = "Health Overview",
+                text = stringResource(R.string.health_title),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = primaryTextColor(),
             )
@@ -209,7 +214,7 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "Health Trend",
+                            text = stringResource(R.string.health_trend_title),
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             color = primaryTextColor(),
                         )
@@ -222,7 +227,7 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Box(modifier = Modifier.size(6.dp).background(AccentRed, CircleShape))
                                     Text(
-                                        "Recording",
+                                        stringResource(R.string.health_recording),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontSize = 8.sp,
                                             color = eInkTextColorOr(AccentRed),
@@ -242,17 +247,28 @@ private fun PostureTrendCard(isRecording: Boolean, onViewCamera: () -> Unit) {
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                         shape = RoundedCornerShape(6.dp)
                     ) {
-                        Text("View Camera", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp))
+                        Text(
+                            stringResource(R.string.health_view_camera),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp)
+                        )
                     }
                 }
                 Text(
-                    text = "Weekly improvements.",
+                    text = stringResource(R.string.health_weekly_improvements),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = secondaryTextColor(),
                 )
                 LineChart(
                     values = listOf(0.65f, 0.72f, 0.68f, 0.78f, 0.82f, 0.75f, 0.88f),
-                    labels = listOf("M", "T", "W", "T", "F", "S", "S"),
+                    labels = listOf(
+                        DayOfWeek.MONDAY,
+                        DayOfWeek.TUESDAY,
+                        DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY,
+                        DayOfWeek.FRIDAY,
+                        DayOfWeek.SATURDAY,
+                        DayOfWeek.SUNDAY
+                    ).map { it.getDisplayName(TextStyle.NARROW, Locale.getDefault()) },
                 )
             }
         }
@@ -391,19 +407,19 @@ private fun HydrationCard() {
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "Hydration",
+                        text = stringResource(R.string.health_hydration_title),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = primaryTextColor(),
                     )
                     Text(
-                        text = "Target 2000 ml",
+                        text = stringResource(R.string.health_hydration_target),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = secondaryTextColor(),
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     ProgressBar(fraction = 0.32f, color = AccentRed.copy(alpha = 0.7f), height = 6.dp)
                     Text(
-                        text = "640 ml logged",
+                        text = stringResource(R.string.health_hydration_logged),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                         color = primaryTextColor(),
                     )
@@ -437,7 +453,7 @@ private fun HealthScoreCard() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Health Score",
+                    text = stringResource(R.string.health_score_title),
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = primaryTextColor()
                 )
@@ -477,7 +493,7 @@ private fun HealthScoreCard() {
                                 color = primaryTextColor()
                             )
                             Text(
-                                text = "SCORE",
+                                text = stringResource(R.string.health_score_label),
                                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontSize = 10.sp),
                                 color = secondaryTextColor()
                             )
@@ -487,7 +503,7 @@ private fun HealthScoreCard() {
                     // Status Pill
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "STATUS",
+                            text = stringResource(R.string.health_status_label),
                             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp, fontSize = 10.sp),
                             color = secondaryTextColor(),
                             modifier = Modifier.padding(bottom = 6.dp)
@@ -531,15 +547,15 @@ private fun ReminderCard() {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = "Reminders",
+                    text = stringResource(R.string.health_reminders_title),
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                     color = primaryTextColor(),
                 )
-                ReminderRow("Stretch", "45 min", AccentOrange)
+                ReminderRow(stringResource(R.string.health_reminder_stretch), stringResource(R.string.health_reminder_stretch_cadence), AccentOrange)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                ReminderRow("Water", "60 min", AccentRed)
+                ReminderRow(stringResource(R.string.health_reminder_water), stringResource(R.string.health_reminder_water_cadence), AccentRed)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                ReminderRow("Stand", "3 x day", AccentOrange)
+                ReminderRow(stringResource(R.string.health_reminder_stand), stringResource(R.string.health_reminder_stand_cadence), AccentOrange)
             }
         }
     }
@@ -551,16 +567,16 @@ private fun PermissionDialog(onDismiss: () -> Unit, onRetry: () -> Unit) {
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onRetry) {
-                Text("Retry")
+                Text(stringResource(R.string.health_retry))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(stringResource(R.string.health_close))
             }
         },
-        title = { Text("Camera permission needed") },
-        text = { Text("Please grant camera permission to view the posture camera.") }
+        title = { Text(stringResource(R.string.health_camera_permission_title)) },
+        text = { Text(stringResource(R.string.health_camera_permission_body)) }
     )
 }
 
@@ -606,14 +622,14 @@ private fun CameraPreviewDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Posture Camera",
+                        stringResource(R.string.health_posture_camera),
                         style = MaterialTheme.typography.titleMedium,
                         color = primaryTextColor(),
                     )
                     IconButton(onClick = onClose) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.content_desc_close),
                             tint = secondaryTextColor(),
                         )
                     }
@@ -703,7 +719,10 @@ private fun CameraPreviewDialog(
                             )
                         )
                         Text(
-                            text = "Confidence: ${(currentResult.confidence * 100).toInt()}%",
+                            text = stringResource(
+                                R.string.health_confidence,
+                                (currentResult.confidence * 100).toInt()
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = eInkTextColorOr(Color.White.copy(alpha = 0.8f))
                         )
@@ -712,7 +731,7 @@ private fun CameraPreviewDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Live posture preview (front camera)",
+                    text = stringResource(R.string.health_live_preview),
                     style = MaterialTheme.typography.bodySmall,
                     color = secondaryTextColor()
                 )
@@ -746,7 +765,7 @@ private fun ReminderRow(title: String, cadence: String, color: Color) {
                 .padding(horizontal = 10.dp, vertical = 4.dp),
         ) {
             Text(
-                text = "On",
+                text = stringResource(R.string.health_toggle_on),
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                 color = eInkTextColorOr(color)
             )

@@ -28,11 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.desk.moodboard.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.assistant.ChatBubble
@@ -93,7 +95,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "VOICE AGENT",
+                        text = stringResource(R.string.home_voice_agent_title),
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 10.sp),
                         color = secondaryTextColor(),
                         fontWeight = FontWeight.Bold,
@@ -101,7 +103,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                     )
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Collapse",
+                        contentDescription = stringResource(R.string.content_desc_collapse),
                         tint = secondaryTextColor(),
                         modifier = Modifier.size(16.dp)
                     )
@@ -137,10 +139,10 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
             // DYNAMIC STRIP TEXT LOGIC
             val stripDisplay = when {
                 uiState.isRecording && uiState.currentTranscript.isNotEmpty() -> uiState.currentTranscript
-                uiState.isRecording -> "Listening..."
-                uiState.isLoading -> "Thinking..."
+                uiState.isRecording -> stringResource(R.string.home_voice_agent_status_listening)
+                uiState.isLoading -> stringResource(R.string.home_voice_agent_status_thinking)
                 uiState.messages.isNotEmpty() && !isExpanded -> uiState.messages.last().text
-                else -> "Ask me anything..."
+                else -> stringResource(R.string.home_voice_agent_status_prompt)
             }
 
             // Determine color for the strip text
@@ -226,7 +228,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Expand",
+                            contentDescription = stringResource(R.string.content_desc_expand),
                             tint = secondaryTextColor(),
                             modifier = Modifier.size(16.dp)
                         )
@@ -248,7 +250,7 @@ fun FloatingVoiceAgent(viewModel: AssistantViewModel) {
                     ) {
                         Icon(
                             Icons.Default.Send,
-                            contentDescription = "Send",
+                            contentDescription = stringResource(R.string.content_desc_send),
                             tint = if (inputText.isNotBlank()) eInkTextColorOr(Color.White) else secondaryTextColor(),
                             modifier = Modifier.size(16.dp)
                         )

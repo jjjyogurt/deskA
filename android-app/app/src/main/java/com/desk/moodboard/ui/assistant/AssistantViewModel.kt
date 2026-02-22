@@ -1,5 +1,6 @@
 package com.desk.moodboard.ui.assistant
 
+import android.content.Context
 import com.desk.moodboard.data.ble.RemoteBleRepository
 import com.desk.moodboard.data.model.ChatMessage
 import com.desk.moodboard.data.remote.DoubaoService
@@ -21,6 +22,7 @@ data class AssistantUiState(
 )
 
 class AssistantViewModel(
+    appContext: Context,
     doubaoService: DoubaoService?,
     todoRepository: TodoRepository,
     noteRepository: NoteRepository,
@@ -31,6 +33,7 @@ class AssistantViewModel(
     calendarViewModel: CalendarViewModel,
     remoteBleRepository: RemoteBleRepository,
 ) : VoiceAgentViewModel(
+    appContext = appContext,
     doubaoService = doubaoService,
     todoRepository = todoRepository,
     noteRepository = noteRepository,

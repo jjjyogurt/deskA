@@ -16,10 +16,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.desk.moodboard.R
 import com.desk.moodboard.ui.home.TodoFilter
 import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.ui.theme.*
@@ -63,7 +65,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Todo",
+                        text = stringResource(R.string.home_todo_title),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = primaryTextColor()
                     )
@@ -85,7 +87,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Say to Voice Agent: “Add groceries”",
+                            text = stringResource(R.string.home_todo_empty_hint),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = secondaryTextColor()
                         )
@@ -116,7 +118,7 @@ fun TodoCard(viewModel: TodoViewModel) {
                                     if (todo.isDone) {
                                         Icon(
                                             imageVector = Icons.Default.Check,
-                                            contentDescription = "Completed",
+                                            contentDescription = stringResource(R.string.content_desc_completed),
                                             tint = eInkTextColorOr(Color.White),
                                             modifier = Modifier.size(10.dp)
                                         )
@@ -168,17 +170,17 @@ fun TodoCard(viewModel: TodoViewModel) {
                 FilterChipSmall(
                     selected = uiState.selectedFilter == TodoFilter.TODAY,
                     onClick = { viewModel.onSelectFilter(TodoFilter.TODAY) },
-                    label = "Today"
+                    label = stringResource(R.string.home_todo_filter_today)
                 )
                 FilterChipSmall(
                     selected = uiState.selectedFilter == TodoFilter.ALL,
                     onClick = { viewModel.onSelectFilter(TodoFilter.ALL) },
-                    label = "All"
+                    label = stringResource(R.string.home_todo_filter_all)
                 )
                 FilterChipSmall(
                     selected = uiState.selectedFilter == TodoFilter.COMPLETED,
                     onClick = { viewModel.onSelectFilter(TodoFilter.COMPLETED) },
-                    label = "Done"
+                    label = stringResource(R.string.home_todo_filter_done)
                 )
             }
         }

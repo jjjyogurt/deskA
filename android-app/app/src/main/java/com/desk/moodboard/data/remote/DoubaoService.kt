@@ -13,6 +13,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import java.util.concurrent.TimeUnit
@@ -143,6 +144,8 @@ class DoubaoService(
     }
 
     suspend fun parseAssistantIntent(input: String): AssistantIntent? {
+        val languageTag = Locale.getDefault().toLanguageTag()
+        val responseLanguage = if (languageTag.startsWith("zh")) "Simplified Chinese" else "English"
         val systemPrompt = """
             You are an AI assistant for a todo list, calendar, and idea notes. Classify intent and return ONLY JSON:
             {
@@ -200,6 +203,7 @@ class DoubaoService(
             9. If the input is casual conversation or questions, use intentType CHAT and fill chatResponse.
             10. Use ISO formats. Current year is 2026. Use null for unknown fields, not empty strings.
             11. Do not invent a due time for TODO unless the user mentions a time.
+            12. clarificationQuestion and chatResponse MUST be in $responseLanguage.
         """.trimIndent()
 
         val currentTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString()

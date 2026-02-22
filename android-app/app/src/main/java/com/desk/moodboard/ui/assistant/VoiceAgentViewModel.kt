@@ -1,8 +1,11 @@
 package com.desk.moodboard.ui.assistant
 
 import android.util.Log
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.desk.moodboard.R
 import com.desk.moodboard.data.model.AssistantIntentType
 import com.desk.moodboard.data.model.ChatMessage
 import com.desk.moodboard.data.model.EventAction
@@ -41,6 +44,7 @@ import kotlin.math.abs
 import kotlin.math.sqrt
 
 open class VoiceAgentViewModel(
+    private val appContext: Context,
     private val doubaoService: DoubaoService?,
     private val todoRepository: TodoRepository,
     private val noteRepository: NoteRepository,
@@ -69,7 +73,7 @@ open class VoiceAgentViewModel(
     private var remoteFinalizeTimeoutJob: Job? = null
 
     init {
-        addMessage("Hi! How can I help?", false)
+        addMessage(s(R.string.assistant_greeting), false)
         observeRemoteMicEvents()
         observeRemoteAudioPackets()
     }
@@ -85,7 +89,7 @@ open class VoiceAgentViewModel(
             if (!asrInitialized) {
                 val initialized = audioRecorder.initialize()
                 if (!initialized) {
-                    addMessage("Microphone permission is required.", false)
+                    addMessage(s(R.string.assistant_error_microphone_permission), false)
                     return@launch
                 }
                 asrInitialized = true
@@ -103,7 +107,7 @@ open class VoiceAgentViewModel(
                     addMessage(finalTranscript, true)
                     processTextInput(finalTranscript)
                 } else {
-                    addMessage("Couldn't hear anything.", false)
+                    addMessage(s(R.string.assistant_error_could_not_hear), false)
                 }
             } else {
                 _uiState.value = _uiState.value.copy(isRecording = true, currentTranscript = "")
@@ -114,7 +118,7 @@ open class VoiceAgentViewModel(
 
     private fun processTextInput(text: String) {
         if (doubaoService == null) {
-            addMessage("API key not configured.", false)
+            addMessage(s(R.string.assistant_error_api_key_missing), false)
             return
         }
 
@@ -140,13 +144,13 @@ open class VoiceAgentViewModel(
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     return@launch
                 }
-                addMessage("I'm having trouble right now. Try again.", false)
+                addMessage(s(R.string.assistant_error_trouble_now), false)
                 _uiState.value = _uiState.value.copy(isLoading = false)
                 return@launch
             }
 
             if (intent.needsClarification) {
-                addMessage(intent.clarificationQuestion ?: "Could you clarify?", false)
+                addMessage(intent.clarificationQuestion ?: s(R.string.todo_could_you_clarify), false)
                 _uiState.value = _uiState.value.copy(isLoading = false)
                 return@launch
             }
@@ -155,7 +159,7 @@ open class VoiceAgentViewModel(
                 AssistantIntentType.TODO -> handleTodo(intent.todo)
                 AssistantIntentType.NOTE -> handleNote(intent.note)
                 AssistantIntentType.EVENT -> handleEventRequest(intent.event)
-                AssistantIntentType.CHAT -> addMessage(intent.chatResponse ?: "How can I help?", false)
+                AssistantIntentType.CHAT -> addMessage(intent.chatResponse ?: s(R.string.todo_how_can_i_help), false)
             }
 
             _uiState.value = _uiState.value.copy(isLoading = false)
@@ -306,7 +310,7 @@ open class VoiceAgentViewModel(
             )
 
             if (snapshot.pcmBytes.isEmpty()) {
-                addMessage("Couldn't hear anything.", false)
+                addMessage(s(R.string.assistant_error_could_not_hear), false)
                 _uiState.value = _uiState.value.copy(isLoading = false, currentTranscript = "")
                 return@launch
             }
@@ -327,7 +331,7 @@ open class VoiceAgentViewModel(
                 addMessage(finalTranscript, true)
                 processTextInput(finalTranscript)
             } else {
-                addMessage("Couldn't hear anything.", false)
+                addMessage(s(R.string.assistant_error_could_not_hear), false)
             }
         }
     }
@@ -408,16 +412,16 @@ open class VoiceAgentViewModel(
 
     private suspend fun handleTodo(todo: TodoRequest?) {
         if (todo == null || todo.title.isBlank()) {
-            addMessage("Please tell me the todo.", false)
+            addMessage(s(R.string.assistant_prompt_tell_todo), false)
             return
         }
 
         try {
             todoRepository.insertFromRequest(todo)
-            addMessage("Added todo: ${todo.title}", false)
+            addMessage(s(R.string.assistant_todo_added, todo.title), false)
             triggerSuccessFeedback()
         } catch (error: Exception) {
-            addMessage("Failed to add todo. Try again.", false)
+            addMessage(s(R.string.assistant_error_add_todo_failed), false)
             return
         }
 
@@ -426,7 +430,7 @@ open class VoiceAgentViewModel(
         val date = todo.dueDate
         val time = todo.dueTime
         if (date == null || time == null) {
-            addMessage("What time should I add to the calendar?", false)
+            addMessage(s(R.string.assistant_prompt_todo_calendar_time), false)
             return
         }
 
@@ -455,7 +459,7 @@ open class VoiceAgentViewModel(
     private suspend fun handleNote(note: NoteRequest?) {
         val content = note?.content?.trim().orEmpty()
         if (content.isBlank()) {
-            addMessage("Please say your idea again.", false)
+            addMessage(s(R.string.assistant_prompt_say_idea_again), false)
             return
         }
 
@@ -464,64 +468,70 @@ open class VoiceAgentViewModel(
 
         try {
             noteRepository.insertFromRequest(sanitized, null)
-            addMessage("Saved note: $shortTitle", false)
+            addMessage(s(R.string.assistant_note_saved, shortTitle), false)
             triggerSuccessFeedback()
         } catch (error: Exception) {
-            addMessage("Failed to save note. Try again.", false)
+            addMessage(s(R.string.assistant_error_save_note_failed), false)
         }
     }
 
     private suspend fun handleEventRequest(request: EventRequest?) {
         if (request == null) {
-            addMessage("Could you repeat that?", false)
+            addMessage(s(R.string.assistant_prompt_repeat), false)
             return
         }
         if (request.needsClarification) {
-            addMessage(request.clarificationQuestion ?: "Could you clarify?", false)
+            addMessage(request.clarificationQuestion ?: s(R.string.todo_could_you_clarify), false)
             return
         }
         if (request.action == EventAction.CREATE && request.startTime == null) {
-            addMessage("What time should I schedule it?", false)
+            addMessage(s(R.string.assistant_prompt_schedule_time), false)
             return
         }
 
         when (request.action) {
-            EventAction.CHAT -> addMessage(request.chatResponse ?: "How can I help you?", false)
+            EventAction.CHAT -> addMessage(request.chatResponse ?: s(R.string.todo_how_can_i_help), false)
             EventAction.CREATE -> {
                 val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 val end = now.plusDays(DefaultConflictWindowDays)
                 val existingEvents = calendarRepository.getEvents(now, end)
                 val derivedTitle = if (request.title.isBlank()) {
-                    "New event ${UUID.randomUUID().toString().take(4)}"
+                    s(R.string.assistant_new_event_title, UUID.randomUUID().toString().take(4))
                 } else {
                     request.title
                 }
                 val conflict = conflictDetector.detectConflicts(request.copy(title = derivedTitle), existingEvents)
 
                 if (conflict.hasConflict) {
-                    addMessage("Conflict: ${conflict.reasoning}", false)
+                    addMessage(s(R.string.assistant_conflict, conflict.reasoning), false)
                     return
                 }
 
                 val finalRequest = request.copy(title = derivedTitle)
                 when (val createResult = calendarRepository.createEvent(finalRequest)) {
                     is CalendarCreateResult.Success -> {
-                        addMessage("Scheduled: ${finalRequest.title}", false)
+                        addMessage(s(R.string.assistant_scheduled, finalRequest.title), false)
                         triggerSuccessFeedback()
                         finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
                         calendarViewModel.refreshEvents()
                     }
                     is CalendarCreateResult.PermissionDenied -> {
-                        addMessage("Calendar write permission is required. Please enable calendar access.", false)
+                        addMessage(s(R.string.assistant_calendar_permission_required), false)
                     }
                     is CalendarCreateResult.NoWritableCalendar -> {
-                        addMessage("No writable calendar account found on this device.", false)
+                        addMessage(s(R.string.assistant_error_no_writable_calendar), false)
                     }
                     is CalendarCreateResult.InvalidInput -> {
                         addMessage(createResult.reason, false)
                     }
                     is CalendarCreateResult.ProviderError -> {
-                        addMessage("Failed to schedule. ${createResult.reason ?: "Please try again."}", false)
+                        addMessage(
+                            s(
+                                R.string.assistant_error_schedule_failed,
+                                createResult.reason ?: s(R.string.assistant_try_again)
+                            ),
+                            false
+                        )
                     }
                 }
             }
@@ -529,13 +539,13 @@ open class VoiceAgentViewModel(
                 val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 val events = calendarRepository.getEvents(now, now.plusDays(1))
                 if (events.isEmpty()) {
-                    addMessage("No events for today.", false)
+                    addMessage(s(R.string.assistant_no_events_today), false)
                 } else {
                     val list = events.joinToString("\n") { "- ${it.title} at ${it.startTime.time}" }
-                    addMessage("Today's events:\n$list", false)
+                    addMessage(s(R.string.assistant_todays_events, list), false)
                 }
             }
-            else -> addMessage("Not yet supported.", false)
+            else -> addMessage(s(R.string.assistant_not_supported), false)
         }
     }
 
@@ -566,7 +576,7 @@ open class VoiceAgentViewModel(
         }
 
         val sanitized = candidate.trim()
-        return if (sanitized.isNotBlank()) sanitized else "Idea Note"
+        return if (sanitized.isNotBlank()) sanitized else s(R.string.assistant_default_note_title)
     }
 
     private fun stripTodoPrefix(text: String): String {
@@ -620,6 +630,10 @@ open class VoiceAgentViewModel(
             "schedule", "meeting", "calendar", "appointment", "set a reminder", "reminder",
             "安排", "会议", "日历", "预约", "提醒"
         )
+    }
+
+    private fun s(@StringRes resId: Int, vararg args: Any): String {
+        return appContext.getString(resId, *args)
     }
 }
 

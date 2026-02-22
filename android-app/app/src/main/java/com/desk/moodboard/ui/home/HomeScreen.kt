@@ -21,7 +21,7 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.time.format.FormatStyle
 
 @Composable
 fun HomeScreen(
@@ -52,7 +52,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val currentDateTime = LocalDateTime.now()
-                    val formatter = DateTimeFormatter.ofPattern("E, MMM d h:mm a", Locale.ENGLISH)
+                    val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
                     Text(
                         text = currentDateTime.format(formatter),
                         style = MaterialTheme.typography.labelSmall.copy(

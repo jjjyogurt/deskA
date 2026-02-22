@@ -37,9 +37,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.desk.moodboard.R
 import com.desk.moodboard.data.model.NoteItem
 import com.desk.moodboard.ui.home.TodoViewModel
 import com.desk.moodboard.ui.theme.Dimens
@@ -50,14 +52,13 @@ import com.desk.moodboard.ui.theme.secondaryTextColor
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotesCard(viewModel: TodoViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    // Cleaner date + time formatter
-    val dateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.ENGLISH)
+    val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
     var expandedNoteId by remember { mutableStateOf<String?>(null) }
 
     Card(
@@ -82,7 +83,7 @@ fun NotesCard(viewModel: TodoViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Idea Notes",
+                    text = stringResource(R.string.home_notes_title),
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = primaryTextColor()
                 )
@@ -95,7 +96,7 @@ fun NotesCard(viewModel: TodoViewModel) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Say to Voice Agent: “Note: My new idea”",
+                            text = stringResource(R.string.home_notes_empty_hint),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = secondaryTextColor()
                         )
@@ -136,7 +137,7 @@ fun NotesCard(viewModel: TodoViewModel) {
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete",
+                                            contentDescription = stringResource(R.string.content_desc_delete),
                                             tint = eInkTextColorOr(Color.White)
                                         )
                                     }

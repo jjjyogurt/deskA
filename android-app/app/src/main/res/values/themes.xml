@@ -2,6 +2,20 @@
 <resources>
     <style name="Theme.Moodboard" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowBackground">#FFF4F2ED</item>
+        <item name="android:colorBackground">#FFF4F2ED</item>
+        <item name="android:windowAnimationStyle">@style/MoodboardWindowAnimation</item>
+    </style>
+
+    <style name="MoodboardWindowAnimation" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/language_fade_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/language_fade_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/language_fade_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/language_fade_out</item>
+        <item name="android:taskOpenEnterAnimation">@anim/language_fade_in</item>
+        <item name="android:taskOpenExitAnimation">@anim/language_fade_out</item>
+        <item name="android:taskCloseEnterAnimation">@anim/language_fade_in</item>
+        <item name="android:taskCloseExitAnimation">@anim/language_fade_out</item>
     </style>
 </resources>
 

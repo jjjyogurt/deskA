@@ -26,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -51,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.desk.moodboard.data.model.AwayTranscriptStatus
+import com.desk.moodboard.R
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.appBackgroundColor
@@ -58,7 +60,7 @@ import com.desk.moodboard.ui.theme.appSurfaceColor
 import com.desk.moodboard.ui.theme.eInkTextColorOr
 import com.desk.moodboard.ui.theme.primaryTextColor
 import com.desk.moodboard.ui.theme.secondaryTextColor
-import java.text.SimpleDateFormat
+import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.lazy.items
@@ -103,12 +105,12 @@ fun FocusScreen(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Focus",
+                    text = stringResource(R.string.focus_title),
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = primaryTextColor(),
                 )
                 Text(
-                    text = "Stay productive and focused",
+                    text = stringResource(R.string.focus_subtitle),
                     style = MaterialTheme.typography.labelSmall,
                     color = secondaryTextColor(),
                 )
@@ -190,7 +192,11 @@ private fun TimerCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = if (isCountdown) "FOCUS TIMER" else "CURRENT SESSION",
+                    text = if (isCountdown) {
+                        stringResource(R.string.focus_timer_label)
+                    } else {
+                        stringResource(R.string.focus_current_session_label)
+                    },
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 0.9.sp,
@@ -208,7 +214,11 @@ private fun TimerCard(
                     color = if (isRunning) eInkTextColorOr(AccentOrange) else primaryTextColor(),
                 )
                 Text(
-                    text = if (isRunning) "Focusing..." else "Tap time to set goal",
+                    text = if (isRunning) {
+                        stringResource(R.string.focus_status_running)
+                    } else {
+                        stringResource(R.string.focus_status_idle)
+                    },
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = secondaryTextColor(),
                 )
@@ -225,7 +235,11 @@ private fun TimerCard(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 6.dp)
                 ) {
                     Text(
-                        text = if (isRunning) "Stop Focus" else "Start Focus",
+                        text = if (isRunning) {
+                            stringResource(R.string.focus_stop)
+                        } else {
+                            stringResource(R.string.focus_start)
+                        },
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
                     )
                 }
@@ -261,7 +275,7 @@ private fun TimerPickerBottomSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Set Focus Duration",
+                text = stringResource(R.string.focus_set_duration),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = primaryTextColor()
             )
@@ -271,7 +285,11 @@ private fun TimerPickerBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 listOf(0L, 15L, 25L, 45L, 60L).forEach { mins ->
-                    val label = if (mins == 0L) "Stopwatch" else "${mins}m"
+                    val label = if (mins == 0L) {
+                        stringResource(R.string.focus_stopwatch)
+                    } else {
+                        stringResource(R.string.focus_minutes, mins.toInt())
+                    }
                     Surface(
                         modifier = Modifier
                             .weight(1f)
@@ -303,8 +321,16 @@ private fun FocusStatsRow() {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        StatCard(title = "TODAY", value = "0m", subtitle = "Focus time")
-        StatCard(title = "STREAK", value = "0", subtitle = "Days")
+        StatCard(
+            title = stringResource(R.string.focus_stat_today),
+            value = "0m",
+            subtitle = stringResource(R.string.focus_stat_focus_time)
+        )
+        StatCard(
+            title = stringResource(R.string.focus_stat_streak),
+            value = "0",
+            subtitle = stringResource(R.string.focus_stat_days)
+        )
     }
 }
 
@@ -365,7 +391,7 @@ private fun DistractionCard(
     onDeleteMessage: (VoiceMessage) -> Unit
 ) {
     val expandedRows = remember { mutableStateMapOf<String, Boolean>() }
-    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    val timeFormatter = remember { DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault()) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -394,7 +420,7 @@ private fun DistractionCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "VOICEMAILS",
+                        text = stringResource(R.string.focus_voicemails),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.9.sp,
@@ -421,7 +447,7 @@ private fun DistractionCard(
                                     .background(AccentOrange, CircleShape)
                             )
                             Text(
-                                text = "Set Away",
+                                text = stringResource(R.string.focus_set_away),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Medium
@@ -435,7 +461,7 @@ private fun DistractionCard(
                 if (awayUiState.messages.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            text = "No new messages",
+                            text = stringResource(R.string.focus_no_new_messages),
                             style = MaterialTheme.typography.labelMedium,
                             color = secondaryTextColor()
                         )
@@ -483,7 +509,7 @@ private fun DistractionCard(
                                         if (revealProgress >= 0.3f) {
                                             Icon(
                                                 painter = painterResource(id = android.R.drawable.ic_menu_delete),
-                                                contentDescription = "Delete voicemail",
+                                                contentDescription = stringResource(R.string.content_desc_delete_voicemail),
                                                 tint = AccentOrange,
                                                 modifier = Modifier.size(18.dp)
                                             )
@@ -505,7 +531,11 @@ private fun DistractionCard(
                                         painter = painterResource(
                                             id = if (isActive) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
                                         ),
-                                        contentDescription = if (isActive) "Pause" else "Play",
+                                        contentDescription = if (isActive) {
+                                            stringResource(R.string.content_desc_pause)
+                                        } else {
+                                            stringResource(R.string.content_desc_play)
+                                        },
                                         tint = AccentOrange,
                                         modifier = Modifier
                                             .size(24.dp)
@@ -521,10 +551,11 @@ private fun DistractionCard(
                                         if (expanded) {
                                             Spacer(modifier = Modifier.height(4.dp))
                                             val transcriptText = when (msg.transcriptStatus) {
-                                                AwayTranscriptStatus.PENDING -> "Transcribing..."
-                                                AwayTranscriptStatus.FAILED -> "Transcript unavailable"
-                                                AwayTranscriptStatus.READY -> msg.transcribedText?.ifBlank { "Transcript unavailable" }
-                                                    ?: "Transcript unavailable"
+                                                AwayTranscriptStatus.PENDING -> stringResource(R.string.focus_transcribing)
+                                                AwayTranscriptStatus.FAILED -> stringResource(R.string.focus_transcript_unavailable)
+                                                AwayTranscriptStatus.READY -> msg.transcribedText?.ifBlank {
+                                                    stringResource(R.string.focus_transcript_unavailable)
+                                                } ?: stringResource(R.string.focus_transcript_unavailable)
                                             }
                                             Text(
                                                 text = transcriptText,

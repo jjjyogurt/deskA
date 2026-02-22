@@ -1,6 +1,8 @@
 package com.desk.moodboard.ui.settings
 
 import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -33,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +68,8 @@ import com.desk.moodboard.ui.theme.secondaryTextColor
 import org.koin.androidx.compose.koinViewModel
 
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.desk.moodboard.R
+import com.desk.moodboard.i18n.AppLanguage
 import com.desk.moodboard.ui.posture.PostureViewModel
 import androidx.compose.runtime.collectAsState
 
@@ -70,6 +77,7 @@ import androidx.compose.runtime.collectAsState
 fun SettingsScreen(
     postureViewModel: PostureViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = koinViewModel(),
+    onApplyLanguage: (AppLanguage) -> Unit = {},
 ) {
     val scroll = rememberScrollState()
     val context = LocalContext.current
@@ -77,8 +85,16 @@ fun SettingsScreen(
     var darkModeEnabled by remember { mutableStateOf(false) }
     val postureDetectionEnabled by postureViewModel.isServiceRunning.collectAsState()
     val eInkEnabled by settingsViewModel.eInkEnabled.collectAsStateWithLifecycle()
+    val appLanguage by settingsViewModel.appLanguage.collectAsStateWithLifecycle()
     var showLogViewer by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(seedLogs()) }
+    var isApplyingLanguage by remember { mutableStateOf(false) }
+    val languageTransitionAlpha by animateFloatAsState(
+        targetValue = if (isApplyingLanguage) 0.08f else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "languageTransitionAlpha",
+    )
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -89,131 +105,149 @@ fun SettingsScreen(
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = appBackgroundColor(),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scroll)
-                .padding(horizontal = Dimens.screenPadding, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
+    Box(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = appBackgroundColor(),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Settings",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = primaryTextColor(),
-                )
-                Text(
-                    text = "Customize your experience",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondaryTextColor(),
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
-            ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f),
+                        .fillMaxSize()
+                        .verticalScroll(scroll)
+                        .padding(horizontal = Dimens.screenPadding, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
                 ) {
-                    SettingsCard(title = "Appearance") {
-                        SwitchRow(
-                            title = "E-ink Mode",
-                            subtitle = "High contrast",
-                            checked = eInkEnabled,
-                            onToggle = { settingsViewModel.setEInk(it) }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_title),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = primaryTextColor(),
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                        SwitchRow(
-                            title = "Dark Mode",
-                            subtitle = "Theme",
-                            checked = darkModeEnabled,
-                            onToggle = { darkModeEnabled = it }
+                        Text(
+                            text = stringResource(R.string.settings_subtitle),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = secondaryTextColor(),
                         )
                     }
 
-                    SettingsCard(title = "Desk") {
-                        ClickableRow(
-                            title = "Height Presets",
-                            value = "2 saved",
-                            onClick = { showToast(context, "Coming soon") }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                        ClickableRow(
-                            title = "Sitting Reminder",
-                            value = "45m",
-                            onClick = { showToast(context, "Coming soon") }
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
-                ) {
-                    SettingsCard(title = "Privacy") {
-                        SwitchRow(
-                            title = "Posture Monitoring",
-                            subtitle = "Background",
-                            checked = postureDetectionEnabled,
-                            onToggle = { enable ->
-                                android.util.Log.d("SettingsScreen", "Toggle Posture Monitoring -> $enable")
-                                if (enable) {
-                                    val status = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
-                                    if (status == PackageManager.PERMISSION_GRANTED) {
-                                        android.util.Log.d("SettingsScreen", "Permission already granted, starting service")
-                                        postureViewModel.togglePostureMonitoring(true)
-                                    } else {
-                                        android.util.Log.d("SettingsScreen", "Requesting CAMERA permission")
-                                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
-                                } else {
-                                    android.util.Log.d("SettingsScreen", "Stopping service")
-                                    postureViewModel.togglePostureMonitoring(false)
-                                }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
+                        ) {
+                            SettingsCard(title = stringResource(R.string.settings_section_appearance)) {
+                                SwitchRow(
+                                    title = stringResource(R.string.settings_eink_mode),
+                                    subtitle = stringResource(R.string.settings_eink_subtitle),
+                                    checked = eInkEnabled,
+                                    onToggle = { settingsViewModel.setEInk(it) }
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                ClickableRow(
+                                    title = stringResource(R.string.language_label),
+                                    value = currentLanguageLabel(appLanguage),
+                                    onClick = { showLanguageDialog = true }
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                SwitchRow(
+                                    title = stringResource(R.string.settings_dark_mode),
+                                    subtitle = stringResource(R.string.settings_dark_mode_subtitle),
+                                    checked = darkModeEnabled,
+                                    onToggle = { darkModeEnabled = it }
+                                )
                             }
-                        )
+
+                            SettingsCard(title = stringResource(R.string.settings_section_desk)) {
+                                ClickableRow(
+                                    title = stringResource(R.string.settings_height_presets),
+                                    value = stringResource(R.string.settings_height_presets_value),
+                                    onClick = { showToast(context, context.getString(R.string.settings_coming_soon)) }
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                ClickableRow(
+                                    title = stringResource(R.string.settings_sitting_reminder),
+                                    value = stringResource(R.string.settings_sitting_reminder_value),
+                                    onClick = { showToast(context, context.getString(R.string.settings_coming_soon)) }
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(Dimens.sectionSpacing),
+                        ) {
+                            SettingsCard(title = stringResource(R.string.settings_section_privacy)) {
+                                SwitchRow(
+                                    title = stringResource(R.string.settings_posture_monitoring),
+                                    subtitle = stringResource(R.string.settings_posture_monitoring_subtitle),
+                                    checked = postureDetectionEnabled,
+                                    onToggle = { enable ->
+                                        android.util.Log.d("SettingsScreen", "Toggle Posture Monitoring -> $enable")
+                                        if (enable) {
+                                            val status = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                                            if (status == PackageManager.PERMISSION_GRANTED) {
+                                                android.util.Log.d("SettingsScreen", "Permission already granted, starting service")
+                                                postureViewModel.togglePostureMonitoring(true)
+                                            } else {
+                                                android.util.Log.d("SettingsScreen", "Requesting CAMERA permission")
+                                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                                            }
+                                        } else {
+                                            android.util.Log.d("SettingsScreen", "Stopping service")
+                                            postureViewModel.togglePostureMonitoring(false)
+                                        }
+                                    }
+                                )
+                            }
+
+                            SettingsCard(title = stringResource(R.string.settings_section_debug)) {
+                                ValueRow(
+                                    title = stringResource(R.string.settings_entries),
+                                    value = logs.size.toString(),
+                                    valueColor = eInkTextColorOr(AccentOrange),
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                ActionRow(
+                                    title = stringResource(R.string.settings_view_logs),
+                                    hint = "→",
+                                    onClick = { showLogViewer = true }
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                ActionRow(
+                                    title = stringResource(R.string.settings_clear_logs),
+                                    hint = "×",
+                                    titleColor = eInkTextColorOr(Color(0xFFB4371E)),
+                                    onClick = { logs = emptyList() }
+                                )
+                            }
+
+                            SettingsCard(title = stringResource(R.string.settings_section_info)) {
+                                ValueRow(
+                                    title = stringResource(R.string.settings_version),
+                                    value = "1.0.0",
+                                    valueColor = secondaryTextColor(),
+                                )
+                            }
+                        }
                     }
 
-                    SettingsCard(title = "Debug") {
-                        ValueRow(
-                            title = "Entries",
-                            value = logs.size.toString(),
-                            valueColor = eInkTextColorOr(AccentOrange),
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                        ActionRow(
-                            title = "View Logs",
-                            hint = "→",
-                            onClick = { showLogViewer = true }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                        ActionRow(
-                            title = "Clear Logs",
-                            hint = "×",
-                            titleColor = eInkTextColorOr(Color(0xFFB4371E)),
-                            onClick = { logs = emptyList() }
-                        )
-                    }
-
-                    SettingsCard(title = "Info") {
-                        ValueRow(
-                            title = "Version",
-                            value = "1.0.0",
-                            valueColor = secondaryTextColor(),
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
+        if (languageTransitionAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(appBackgroundColor().copy(alpha = languageTransitionAlpha))
+            )
         }
     }
 
@@ -221,6 +255,20 @@ fun SettingsScreen(
         LogViewerDialog(
             logs = logs,
             onDismiss = { showLogViewer = false }
+        )
+    }
+    if (showLanguageDialog) {
+        LanguagePickerDialog(
+            selectedLanguage = appLanguage,
+            onDismiss = { showLanguageDialog = false },
+            onSelect = {
+                if (it != appLanguage) {
+                    isApplyingLanguage = true
+                    onApplyLanguage(it)
+                    settingsViewModel.setAppLanguage(it)
+                }
+                showLanguageDialog = false
+            }
         )
     }
 }
@@ -277,12 +325,12 @@ private fun SwitchRow(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = primaryTextColor()
             )
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = secondaryTextColor()
             )
         }
@@ -316,7 +364,7 @@ private fun ClickableRow(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
             color = primaryTextColor(),
         )
         Text(
@@ -401,11 +449,11 @@ private fun LogViewerDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Debug Logs (${logs.size})",
+                        text = pluralStringResource(R.plurals.settings_debug_logs_title, logs.size, logs.size),
                         style = MaterialTheme.typography.titleLarge.copy(color = YogurtSilk),
                     )
                     TextButton(onClick = onDismiss) {
-                        Text("Close", color = eInkTextColorOr(AccentOrange), fontSize = 15.sp)
+                        Text(stringResource(R.string.settings_close), color = eInkTextColorOr(AccentOrange), fontSize = 15.sp)
                     }
                 }
 
@@ -465,6 +513,75 @@ private fun LogViewerDialog(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun currentLanguageLabel(language: AppLanguage): String {
+    return when (language) {
+        AppLanguage.SYSTEM -> stringResource(R.string.language_option_system)
+        AppLanguage.ENGLISH -> stringResource(R.string.language_option_en)
+        AppLanguage.CHINESE_SIMPLIFIED -> stringResource(R.string.language_option_zh_cn)
+    }
+}
+
+@Composable
+private fun LanguagePickerDialog(
+    selectedLanguage: AppLanguage,
+    onDismiss: () -> Unit,
+    onSelect: (AppLanguage) -> Unit,
+) {
+    val options = listOf(
+        AppLanguage.SYSTEM,
+        AppLanguage.ENGLISH,
+        AppLanguage.CHINESE_SIMPLIFIED
+    )
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = appSurfaceColor(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.language_dialog_title),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = primaryTextColor(),
+                )
+                options.forEach { language ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(language) }
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = language == selectedLanguage,
+                            onClick = { onSelect(language) },
+                        )
+                        Text(
+                            text = currentLanguageLabel(language),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = primaryTextColor(),
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            text = stringResource(R.string.settings_close),
+                            color = eInkTextColorOr(AccentOrange),
+                        )
                     }
                 }
             }

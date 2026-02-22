@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="settings_debug_logs_title">
+        <item quantity="other">调试日志（%d）</item>
+    </plurals>
+</resources>

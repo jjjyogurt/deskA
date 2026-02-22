@@ -1,7 +1,10 @@
 package com.desk.moodboard.ui.home
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.desk.moodboard.R
 import com.desk.moodboard.data.model.AssistantIntentType
 import com.desk.moodboard.data.model.EventAction
 import com.desk.moodboard.data.model.EventRequest
@@ -53,6 +56,7 @@ data class TodoUiState(
 )
 
 class TodoViewModel(
+    private val appContext: Context,
     private val doubaoService: DoubaoService?,
     private val todoRepository: TodoRepository,
     private val noteRepository: NoteRepository,
@@ -114,10 +118,10 @@ class TodoViewModel(
                 if (finalTranscript.isNotBlank()) {
                     processTextInput(finalTranscript)
                 } else {
-                    _uiState.update { it.copy(statusMessage = "Couldn't hear anything.") }
+                    _uiState.update { it.copy(statusMessage = s(R.string.assistant_error_could_not_hear)) }
                 }
             } else {
-                _uiState.update { it.copy(isRecording = true, statusMessage = "Listening...") }
+                _uiState.update { it.copy(isRecording = true, statusMessage = s(R.string.home_voice_agent_status_listening)) }
                 audioRecorder.startRecording()
             }
         }
@@ -133,7 +137,7 @@ class TodoViewModel(
             it.copy(
                 isNoteSessionActive = true,
                 activeNoteSessionId = newSessionId,
-                noteStatusMessage = "Idea Notes session started."
+                noteStatusMessage = s(R.string.todo_note_session_started)
             )
         }
     }
@@ -150,7 +154,7 @@ class TodoViewModel(
                 activeNoteSessionId = null,
                 isNoteRecording = false,
                 isNoteLoading = false,
-                noteStatusMessage = "Idea Notes session stopped."
+                noteStatusMessage = s(R.string.todo_note_session_stopped)
             )
         }
     }
@@ -158,11 +162,11 @@ class TodoViewModel(
     fun onToggleNoteRecording(context: android.content.Context) {
         viewModelScope.launch {
             if (!_uiState.value.isNoteSessionActive) {
-                _uiState.update { it.copy(noteStatusMessage = "Start a notes session first.") }
+                _uiState.update { it.copy(noteStatusMessage = s(R.string.todo_note_start_session_first)) }
                 return@launch
             }
             if (_uiState.value.isRecording) {
-                _uiState.update { it.copy(noteStatusMessage = "Finish todo recording first.") }
+                _uiState.update { it.copy(noteStatusMessage = s(R.string.todo_note_finish_todo_recording_first)) }
                 return@launch
             }
             if (!asrInitialized) {
@@ -184,10 +188,10 @@ class TodoViewModel(
                 if (finalTranscript.isNotBlank()) {
                     processNoteTextInput(finalTranscript)
                 } else {
-                    _uiState.update { it.copy(noteStatusMessage = "Couldn't hear anything.") }
+                    _uiState.update { it.copy(noteStatusMessage = s(R.string.assistant_error_could_not_hear)) }
                 }
             } else {
-                _uiState.update { it.copy(isNoteRecording = true, noteStatusMessage = "Listening for ideas...") }
+                _uiState.update { it.copy(isNoteRecording = true, noteStatusMessage = s(R.string.todo_note_listening_for_ideas)) }
                 audioRecorder.startRecording()
             }
         }
@@ -195,15 +199,15 @@ class TodoViewModel(
 
     private fun processTextInput(text: String) {
         if (doubaoService == null) {
-            _uiState.update { it.copy(statusMessage = "API key not configured.") }
+            _uiState.update { it.copy(statusMessage = s(R.string.assistant_error_api_key_missing)) }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "Processing...") }
+            _uiState.update { it.copy(isLoading = true, statusMessage = s(R.string.todo_processing)) }
             val intent = doubaoService.parseAssistantIntent(text)
             if (intent == null) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "I couldn't understand that.") }
+                _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.todo_could_not_understand)) }
                 return@launch
             }
 
@@ -211,7 +215,7 @@ class TodoViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = intent.clarificationQuestion ?: "Could you clarify?"
+                        statusMessage = intent.clarificationQuestion ?: s(R.string.todo_could_you_clarify)
                     )
                 }
                 return@launch
@@ -223,7 +227,7 @@ class TodoViewModel(
                 AssistantIntentType.NOTE -> handleNote(intent.note)
                 AssistantIntentType.CHAT -> {
                     _uiState.update {
-                        it.copy(isLoading = false, statusMessage = intent.chatResponse ?: "How can I help?")
+                        it.copy(isLoading = false, statusMessage = intent.chatResponse ?: s(R.string.todo_how_can_i_help))
                     }
                 }
             }
@@ -232,18 +236,18 @@ class TodoViewModel(
 
     private suspend fun handleTodo(todo: TodoRequest?) {
         if (todo == null || todo.title.isBlank()) {
-            _uiState.update { it.copy(isLoading = false, statusMessage = "Please tell me the todo.") }
+            _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.assistant_prompt_tell_todo)) }
             return
         }
 
         todoRepository.insertFromRequest(todo)
-        _uiState.update { it.copy(statusMessage = "Added todo: ${todo.title}") }
+        _uiState.update { it.copy(statusMessage = s(R.string.assistant_todo_added, todo.title)) }
 
         if (todo.createCalendarEvent) {
             val date = todo.dueDate
             val time = todo.dueTime
             if (date == null || time == null) {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "What time should I add to the calendar?") }
+                _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.assistant_prompt_todo_calendar_time)) }
                 return
             }
             val startTime = LocalDateTime(date.year, date.month, date.dayOfMonth, time.hour, time.minute, time.second)
@@ -264,27 +268,27 @@ class TodoViewModel(
 
     private fun processNoteTextInput(text: String) {
         if (doubaoService == null) {
-            _uiState.update { it.copy(noteStatusMessage = "API key not configured.") }
+            _uiState.update { it.copy(noteStatusMessage = s(R.string.assistant_error_api_key_missing)) }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isNoteLoading = true, noteStatusMessage = "Processing note...") }
+            _uiState.update { it.copy(isNoteLoading = true, noteStatusMessage = s(R.string.todo_processing_note)) }
             val intent = try {
                 doubaoService.parseAssistantIntent(text)
             } catch (error: Exception) {
-                _uiState.update { it.copy(isNoteLoading = false, noteStatusMessage = "Note processing failed. Try again.") }
+                _uiState.update { it.copy(isNoteLoading = false, noteStatusMessage = s(R.string.todo_note_processing_failed)) }
                 return@launch
             }
             if (intent == null) {
-                _uiState.update { it.copy(isNoteLoading = false, noteStatusMessage = "I couldn't understand that.") }
+                _uiState.update { it.copy(isNoteLoading = false, noteStatusMessage = s(R.string.todo_could_not_understand)) }
                 return@launch
             }
             if (intent.needsClarification) {
                 _uiState.update {
                     it.copy(
                         isNoteLoading = false,
-                        noteStatusMessage = intent.clarificationQuestion ?: "Could you clarify?"
+                        noteStatusMessage = intent.clarificationQuestion ?: s(R.string.todo_could_you_clarify)
                     )
                 }
                 return@launch
@@ -292,7 +296,7 @@ class TodoViewModel(
 
             if (intent.intentType != AssistantIntentType.NOTE) {
                 _uiState.update {
-                    it.copy(isNoteLoading = false, noteStatusMessage = "Say “note” or “save this idea” to capture it.")
+                    it.copy(isNoteLoading = false, noteStatusMessage = s(R.string.todo_note_capture_hint))
                 }
                 return@launch
             }
@@ -308,7 +312,7 @@ class TodoViewModel(
                 it.copy(
                     isLoading = false,
                     isNoteLoading = false,
-                    noteStatusMessage = "Please say your idea again."
+                    noteStatusMessage = s(R.string.assistant_prompt_say_idea_again)
                 )
             }
             return
@@ -322,7 +326,7 @@ class TodoViewModel(
                 it.copy(
                     isLoading = false,
                     isNoteLoading = false,
-                    noteStatusMessage = "Saved note: $shortTitle"
+                    noteStatusMessage = s(R.string.assistant_note_saved, shortTitle)
                 )
             }
         } catch (error: Exception) {
@@ -330,7 +334,7 @@ class TodoViewModel(
                 it.copy(
                     isLoading = false,
                     isNoteLoading = false,
-                    noteStatusMessage = "Failed to save note. Try again."
+                    noteStatusMessage = s(R.string.assistant_error_save_note_failed)
                 )
             }
         }
@@ -347,19 +351,19 @@ class TodoViewModel(
         val contentWords = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
         val preferred = if (titleWords.size >= 2) titleWords else contentWords
         val shortTitle = preferred.take(3).joinToString(" ")
-        return if (shortTitle.isNotBlank()) shortTitle else "Idea Note"
+        return if (shortTitle.isNotBlank()) shortTitle else s(R.string.assistant_default_note_title)
     }
 
     private suspend fun handleEvent(request: EventRequest?) {
         if (request == null) {
-            _uiState.update { it.copy(isLoading = false, statusMessage = "Could you repeat that?") }
+            _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.assistant_prompt_repeat)) }
             return
         }
         if (request.needsClarification) {
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    statusMessage = request.clarificationQuestion ?: "Could you clarify?"
+                    statusMessage = request.clarificationQuestion ?: s(R.string.todo_could_you_clarify)
                 )
             }
             return
@@ -367,12 +371,12 @@ class TodoViewModel(
 
         val action = request.action
         if (action != EventAction.CREATE) {
-            _uiState.update { it.copy(isLoading = false, statusMessage = "Only creation is supported here.") }
+            _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.todo_only_creation_supported)) }
             return
         }
 
         val derivedTitle = if (request.title.isBlank()) {
-            "New event ${UUID.randomUUID().toString().take(4)}"
+            s(R.string.assistant_new_event_title, UUID.randomUUID().toString().take(4))
         } else {
             request.title
         }
@@ -383,14 +387,14 @@ class TodoViewModel(
         val existingEvents = calendarRepository.getEvents(now, end)
         val conflict = conflictDetector.detectConflicts(request.copy(title = derivedTitle), existingEvents)
         if (conflict.hasConflict) {
-            _uiState.update { it.copy(isLoading = false, statusMessage = "Conflict: ${conflict.reasoning}") }
+            _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.assistant_conflict, conflict.reasoning)) }
             return
         }
 
         val finalRequest = request.copy(title = derivedTitle)
         when (val createResult = calendarRepository.createEvent(finalRequest)) {
             is CalendarCreateResult.Success -> {
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Scheduled: ${finalRequest.title}") }
+                _uiState.update { it.copy(isLoading = false, statusMessage = s(R.string.assistant_scheduled, finalRequest.title)) }
                 finalRequest.startTime?.let { calendarViewModel.selectDate(it.date) }
                 calendarViewModel.refreshEvents()
             }
@@ -398,7 +402,7 @@ class TodoViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Calendar write permission is required. Please enable calendar access."
+                        statusMessage = s(R.string.assistant_calendar_permission_required)
                     )
                 }
             }
@@ -406,7 +410,7 @@ class TodoViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "No writable calendar account found on this device."
+                        statusMessage = s(R.string.assistant_error_no_writable_calendar)
                     )
                 }
             }
@@ -417,11 +421,18 @@ class TodoViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Failed to schedule. ${createResult.reason ?: "Please try again."}"
+                        statusMessage = s(
+                            R.string.assistant_error_schedule_failed,
+                            createResult.reason ?: s(R.string.assistant_try_again)
+                        )
                     )
                 }
             }
         }
+    }
+
+    private fun s(@StringRes resId: Int, vararg args: Any): String {
+        return appContext.getString(resId, *args)
     }
 
 }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="settings_debug_logs_title">
+        <item quantity="one">Debug Logs (%d)</item>
+        <item quantity="other">Debug Logs (%d)</item>
+    </plurals>
+</resources>

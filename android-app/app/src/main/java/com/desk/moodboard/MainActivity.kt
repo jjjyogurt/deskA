@@ -1,7 +1,6 @@
 package com.desk.moodboard
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -36,6 +36,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import com.desk.moodboard.data.preferences.UserPreferences
 import com.desk.moodboard.ui.assistant.AssistantScreen
 import com.desk.moodboard.ui.assistant.AssistantViewModel
 import com.desk.moodboard.ui.focus.AwayModeViewModel
@@ -43,6 +47,7 @@ import com.desk.moodboard.ui.focus.FocusScreen
 import com.desk.moodboard.ui.health.HealthScreen
 import com.desk.moodboard.ui.home.HomeScreen
 import com.desk.moodboard.ui.settings.SettingsScreen
+import com.desk.moodboard.ui.settings.SettingsViewModel
 import com.desk.moodboard.ui.theme.AccentOrange
 import com.desk.moodboard.ui.theme.Dimens
 import com.desk.moodboard.ui.theme.MoodboardTheme
@@ -50,19 +55,21 @@ import com.desk.moodboard.ui.theme.appBackgroundColor
 import com.desk.moodboard.ui.theme.appSurfaceColor
 import com.desk.moodboard.ui.theme.eInkTextColorOr
 import com.desk.moodboard.ui.theme.secondaryTextColor
-import com.desk.moodboard.ui.settings.SettingsViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        val startupLanguage = runBlocking { UserPreferences(applicationContext).appLanguage.first() }
+        val startupLocales = startupLanguage.toLocaleListCompat()
+        if (AppCompatDelegate.getApplicationLocales().toLanguageTags() != startupLocales.toLanguageTags()) {
+            AppCompatDelegate.setApplicationLocales(startupLocales)
+        }
+
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        
-        // Hide system bars (status bar and navigation bar) for full screen
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         setContent {
             val settingsViewModel: SettingsViewModel = koinViewModel()
@@ -75,12 +82,19 @@ class MainActivity : ComponentActivity() {
                 MoodboardApp()
             }
         }
+
+        // Delay immersive mode until first frame to avoid transient black during recreation.
+        window.decorView.post {
+            val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+            windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+            windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 }
 
 private data class NavItem(
     val route: String,
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: androidx.compose.ui.graphics.vector.ImageVector?,
 )
 
@@ -90,10 +104,10 @@ private fun MoodboardApp() {
     val awayModeViewModel: AwayModeViewModel = koinViewModel()
     val awayUiState by awayModeViewModel.uiState.collectAsStateWithLifecycle()
     val navItems = listOf(
-        NavItem("home", "Home", null),
-        NavItem("health", "Health", null),
-        NavItem("focus", "Focus", null),
-        NavItem("settings", "Settings", null),
+        NavItem("home", R.string.nav_home, null),
+        NavItem("health", R.string.nav_health, null),
+        NavItem("focus", R.string.nav_focus, null),
+        NavItem("settings", R.string.nav_settings, null),
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -134,7 +148,7 @@ private fun MoodboardApp() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = item.label,
+                                    text = stringResource(item.labelRes),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     ),
@@ -166,7 +180,16 @@ private fun MoodboardApp() {
                 composable("home") { HomeScreen() }
                 composable("health") { HealthScreen() }
                 composable("focus") { FocusScreen(awayModeViewModel = awayModeViewModel) }
-                composable("settings") { SettingsScreen() }
+                composable("settings") {
+                    SettingsScreen(
+                        onApplyLanguage = { selectedLanguage ->
+                            val targetLocales = selectedLanguage.toLocaleListCompat()
+                            if (AppCompatDelegate.getApplicationLocales().toLanguageTags() != targetLocales.toLanguageTags()) {
+                                AppCompatDelegate.setApplicationLocales(targetLocales)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
